@@ -130,7 +130,7 @@ export default function MyShops() {
 
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button 
-                  onClick={() => navigate(`/shop/${shop.customId || shop.shopCode}`)}
+                  onClick={() => navigate(`/manage-rooms/${shop.id}`)}
                   style={{ 
                     flex: 1,
                     padding: "0.5rem", 
@@ -141,7 +141,7 @@ export default function MyShops() {
                     cursor: "pointer"
                   }}
                 >
-                  View
+                  Manage Rooms
                 </button>
                 <button 
                   onClick={() => {

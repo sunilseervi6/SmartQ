@@ -7,6 +7,9 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import CreateShop from "./pages/CreateShop";
 import MyShops from "./pages/MyShops";
+import ManageRooms from "./pages/ManageRooms";
+import QueueDashboard from "./pages/QueueDashboard";
+import JoinQueue from "./pages/JoinQueue";
 
 export default function App() {
   return (
@@ -39,6 +42,30 @@ export default function App() {
             element={
               <PrivateRoute>
                 <MyShops />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/manage-rooms/:shopId"
+            element={
+              <PrivateRoute>
+                <ManageRooms />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/queue-dashboard/:roomId"
+            element={
+              <PrivateRoute>
+                <QueueDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/join-queue"
+            element={
+              <PrivateRoute>
+                <JoinQueue />
               </PrivateRoute>
             }
           />

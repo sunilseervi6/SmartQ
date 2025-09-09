@@ -87,9 +87,14 @@ export const createShop = async (req, res) => {
 export const getUserShops = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log("Getting shops for user ID:", userId);
+    console.log("User object:", req.user);
     
     const shops = await Shop.find({ owner: userId, isActive: true })
       .sort({ createdAt: -1 });
+      
+    console.log("Found shops:", shops.length);
+    console.log("Shop owners:", shops.map(s => ({ name: s.name, owner: s.owner })));
 
     res.json({
       success: true,

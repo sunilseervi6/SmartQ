@@ -1,8 +1,10 @@
 import { useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
 export default function Dashboard() {
   const { user, logout } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   return (
     <div style={{ padding: "2rem" }}>
@@ -13,37 +15,51 @@ export default function Dashboard() {
           <p>Welcome to SmartQ, <strong>{user.name}</strong>!</p>
           <p>You are successfully logged in.</p>
           
-          <div style={{ marginTop: "2rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "1rem", justifyContent: "center", marginTop: "2rem", flexWrap: "wrap" }}>
             <button 
-              onClick={() => window.location.href = "/create-shop"}
+              onClick={() => navigate("/create-shop")}
               style={{ 
-                padding: "1rem 1.5rem", 
-                backgroundColor: "#28a745", 
-                color: "white", 
-                border: "none", 
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: "bold"
-              }}
-            >
-              🏪 Create Shop
-            </button>
-            
-            <button 
-              onClick={() => window.location.href = "/my-shops"}
-              style={{ 
-                padding: "1rem 1.5rem", 
+                padding: "1rem 2rem", 
                 backgroundColor: "#007bff", 
                 color: "white", 
                 border: "none", 
                 borderRadius: "8px",
                 cursor: "pointer",
-                fontSize: "1rem",
+                fontSize: "1.1rem",
                 fontWeight: "bold"
               }}
             >
-              📋 My Shops
+              Create Shop
+            </button>
+            <button 
+              onClick={() => navigate("/my-shops")}
+              style={{ 
+                padding: "1rem 2rem", 
+                backgroundColor: "#28a745", 
+                color: "white", 
+                border: "none", 
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "1.1rem",
+                fontWeight: "bold"
+              }}
+            >
+              My Shops
+            </button>
+            <button 
+              onClick={() => navigate("/join-queue")}
+              style={{ 
+                padding: "1rem 2rem", 
+                backgroundColor: "#6f42c1", 
+                color: "white", 
+                border: "none", 
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "1.1rem",
+                fontWeight: "bold"
+              }}
+            >
+              Join Queue
             </button>
           </div>
 
