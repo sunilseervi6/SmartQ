@@ -78,6 +78,22 @@ export const joinQueue = async (req, res) => {
     const estimatedWaitTime = peopleAhead * 5; // 5 minutes per person
     await Queue.findByIdAndUpdate(queueEntry._id, { estimatedWaitTime });
 
+    // Emit real-time update to all clients in this room
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`room-${room._id}`).emit('queue-updated', {
+        type: 'customer-joined',
+        roomId: room._id,
+        customer: {
+          id: queueEntry._id,
+          queueNumber: queueEntry.queueNumber,
+          customerName: req.user.name,
+          status: queueEntry.status,
+          priority: queueEntry.priority
+        }
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: "Successfully joined the queue",
@@ -114,10 +130,8 @@ export const leaveQueue = async (req, res) => {
       return res.status(404).json({ message: "Queue entry not found" });
     }
 
-    await Queue.findByIdAndUpdate(queueId, { 
-      status: 'cancelled',
-      completedAt: new Date()
-    });
+    // Hard delete - remove from database completely
+    await Queue.findByIdAndDelete(queueId);
 
     res.json({
       success: true,
@@ -316,13 +330,9 @@ export const clearQueue = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    // Update all waiting customers to cancelled
-    await Queue.updateMany(
-      { roomId: room._id, status: { $in: ['waiting', 'in_progress'] } },
-      { 
-        status: 'cancelled',
-        completedAt: new Date()
-      }
+    // Hard delete - remove all queue entries from database
+    await Queue.deleteMany(
+      { roomId: room._id, status: { $in: ['waiting', 'in_progress'] } }
     );
 
     res.json({

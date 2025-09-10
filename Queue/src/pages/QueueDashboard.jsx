@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
+import useSocket from "../hooks/useSocket";
 
 export default function QueueDashboard() {
   const { roomId } = useParams();
@@ -10,12 +11,24 @@ export default function QueueDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentCustomer, setCurrentCustomer] = useState(null);
+  const { joinRoom, leaveRoom, onQueueUpdate, offQueueUpdate } = useSocket();
 
   useEffect(() => {
     fetchRoomAndQueue();
-    // Set up polling for real-time updates
-    const interval = setInterval(fetchRoomAndQueue, 3000);
-    return () => clearInterval(interval);
+    
+    // Join socket room for real-time updates
+    joinRoom(roomId);
+    
+    // Listen for queue updates
+    onQueueUpdate((data) => {
+      console.log('Queue update received:', data);
+      fetchRoomAndQueue(); // Refresh data when updates occur
+    });
+
+    return () => {
+      leaveRoom(roomId);
+      offQueueUpdate();
+    };
   }, [roomId]);
 
   const fetchRoomAndQueue = async () => {

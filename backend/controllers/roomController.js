@@ -1,5 +1,6 @@
 import Room from "../models/Room.js";
 import Shop from "../models/Shop.js";
+import Queue from "../models/Queue.js";
 
 // Create a new room
 export const createRoom = async (req, res) => {
@@ -193,12 +194,16 @@ export const deleteRoom = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    // Soft delete by setting isActive to false
-    await Room.findByIdAndUpdate(roomId, { isActive: false });
+    // Hard delete - remove from database completely
+    // First, delete all queues associated with this room
+    await Queue.deleteMany({ roomId: roomId });
+    
+    // Then delete the room itself
+    await Room.findByIdAndDelete(roomId);
 
     res.json({
       success: true,
-      message: "Room deleted successfully"
+      message: "Room and associated queues deleted successfully"
     });
   } catch (err) {
     console.error("Delete room error:", err);
