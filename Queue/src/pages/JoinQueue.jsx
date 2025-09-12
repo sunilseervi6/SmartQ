@@ -102,253 +102,340 @@ export default function JoinQueue() {
   };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-        <h2>Join Queue</h2>
-        <button 
-          onClick={() => navigate("/dashboard")}
-          style={{ 
-            padding: "0.75rem 1.5rem", 
-            backgroundColor: "#6c757d", 
-            color: "white", 
-            border: "none", 
-            borderRadius: "4px",
-            cursor: "pointer"
-          }}
-        >
-          Back to Dashboard
-        </button>
-      </div>
-
-      {error && <p style={{ color: "red", backgroundColor: "#ffe6e6", padding: "0.5rem", borderRadius: "4px", marginBottom: "1rem" }}>{error}</p>}
-      {success && <p style={{ color: "green", backgroundColor: "#e6ffe6", padding: "0.5rem", borderRadius: "4px", marginBottom: "1rem" }}>{success}</p>}
-
-      {/* Search Room */}
-      <div style={{ 
-        backgroundColor: "#f8f9fa", 
-        padding: "2rem", 
-        borderRadius: "8px", 
-        marginBottom: "2rem",
-        border: "1px solid #ddd"
-      }}>
-        <h3>Find Room</h3>
-        <form onSubmit={handleSearchRoom} style={{ display: "flex", gap: "1rem", alignItems: "end" }}>
-          <div style={{ flex: 1 }}>
-            <label>Room Code</label>
-            <input
-              type="text"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              placeholder="Enter room code (e.g., RM-ABC123)"
-              style={{ width: "100%", padding: "0.75rem", marginTop: "0.25rem", fontSize: "1rem" }}
-            />
-          </div>
-          <button 
-            type="submit"
-            disabled={loading}
-            style={{ 
-              padding: "0.75rem 1.5rem", 
-              backgroundColor: "#007bff", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "4px",
-              cursor: loading ? "not-allowed" : "pointer"
-            }}
-          >
-            {loading ? "Searching..." : "Search"}
-          </button>
-        </form>
-      </div>
-
-      {/* Room Info */}
-      {room && (
-        <div style={{ 
-          border: "1px solid #ddd", 
-          borderRadius: "8px", 
-          padding: "2rem",
-          backgroundColor: "white",
-          marginBottom: "2rem"
-        }}>
-          <h3>{room.name}</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
-            <div>
-              <p><strong>Room Type:</strong> {room.roomType}</p>
-              <p><strong>Operating Hours:</strong> {room.operatingHours ? `${room.operatingHours.start} - ${room.operatingHours.end}` : 'Not specified'}</p>
-            </div>
-            <div>
-              <p><strong>Current Queue:</strong> {room.currentCount} / {room.maxCapacity}</p>
-              <p><strong>Room Code:</strong> <code>{room.roomCode}</code></p>
-            </div>
-          </div>
-          {room.description && <p style={{ color: "#666", fontStyle: "italic" }}>{room.description}</p>}
-        </div>
-      )}
-
-      {/* My Queue Status */}
-      {myQueueStatus && (
-        <div style={{ 
-          backgroundColor: myQueueStatus.status === 'in_progress' ? "#d4edda" : "#d1ecf1", 
-          border: `1px solid ${myQueueStatus.status === 'in_progress' ? "#c3e6cb" : "#bee5eb"}`, 
-          borderRadius: "8px", 
-          padding: "1.5rem",
-          marginBottom: "2rem"
-        }}>
-          <h3>Your Queue Status</h3>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <p><strong>Queue Number:</strong> #{myQueueStatus.queueNumber}</p>
-              <p><strong>Status:</strong> {myQueueStatus.status === 'in_progress' ? 'Being Served' : 'Waiting'}</p>
-              {myQueueStatus.status === 'waiting' && (
-                <p><strong>Position:</strong> {getQueuePosition()} in line</p>
-              )}
-              {myQueueStatus.estimatedWaitTime > 0 && (
-                <p><strong>Estimated Wait:</strong> {myQueueStatus.estimatedWaitTime} minutes</p>
-              )}
-            </div>
-            {myQueueStatus.status === 'waiting' && (
+    <div style={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, var(--light-blue) 0%, var(--light-teal) 100%)', 
+      padding: '2rem' 
+    }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        {/* Header */}
+        <div className="card mb-6 fade-in">
+          <div className="card-header">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 style={{ color: 'var(--primary-blue)', marginBottom: '0.5rem' }}>
+                  🎯 Join Queue
+                </h1>
+                <p style={{ color: 'var(--gray-600)', margin: '0' }}>
+                  Find and join queues at your favorite shops
+                </p>
+              </div>
               <button 
-                onClick={handleLeaveQueue}
-                style={{ 
-                  padding: "0.75rem 1.5rem", 
-                  backgroundColor: "#dc3545", 
-                  color: "white", 
-                  border: "none", 
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
+                onClick={() => navigate("/dashboard")}
+                className="btn btn-ghost"
               >
-                Leave Queue
+                ← Back to Dashboard
               </button>
-            )}
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Join Queue Form */}
-      {room && !myQueueStatus && (
-        <div style={{ 
-          backgroundColor: "#f8f9fa", 
-          padding: "2rem", 
-          borderRadius: "8px", 
-          marginBottom: "2rem",
-          border: "1px solid #ddd"
-        }}>
-          <h3>Join Queue</h3>
-          <form onSubmit={handleJoinQueue} style={{ display: "grid", gap: "1rem" }}>
-            <div>
-              <label>Your Name *</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Enter your full name"
-                required
-                style={{ width: "100%", padding: "0.75rem", marginTop: "0.25rem" }}
-              />
+        {/* Notifications */}
+        {error && (
+          <div className="card mb-6 fade-in" style={{ borderLeft: '4px solid var(--error)' }}>
+            <div className="card-body" style={{ background: '#fef2f2', color: 'var(--error)' }}>
+              <div className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
             </div>
+          </div>
+        )}
 
-            <div>
-              <label>Priority</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                style={{ width: "100%", padding: "0.75rem", marginTop: "0.25rem" }}
+        {success && (
+          <div className="card mb-6 fade-in" style={{ borderLeft: '4px solid var(--success)' }}>
+            <div className="card-body" style={{ background: '#f0fdf4', color: 'var(--success)' }}>
+              <div className="flex items-center gap-2">
+                <span>✅</span>
+                <span>{success}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Search Room */}
+        <div className="card mb-6 fade-in">
+          <div className="card-header">
+            <h2 style={{ color: 'var(--primary-teal)', margin: '0' }}>🔍 Find Room</h2>
+          </div>
+          <div className="card-body">
+            <form onSubmit={handleSearchRoom} className="flex gap-4 items-end">
+              <div style={{ flex: 1 }}>
+                <label className="form-label">Room Code</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={roomCode}
+                  onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                  placeholder="Enter room code (e.g., RM-ABC123)"
+                  disabled={loading}
+                />
+              </div>
+              <button 
+                type="submit"
+                disabled={loading}
+                className={`btn ${loading ? 'btn-ghost' : 'btn-primary'}`}
               >
-                <option value="normal">Normal</option>
-                <option value="urgent">Urgent</option>
-                <option value="vip">VIP</option>
-              </select>
-            </div>
-
-            <button 
-              type="submit"
-              disabled={loading || room.currentCount >= room.maxCapacity}
-              style={{ 
-                padding: "1rem 2rem", 
-                backgroundColor: room.currentCount >= room.maxCapacity ? "#6c757d" : "#28a745", 
-                color: "white", 
-                border: "none", 
-                borderRadius: "4px",
-                cursor: room.currentCount >= room.maxCapacity ? "not-allowed" : "pointer",
-                fontSize: "1.1rem",
-                fontWeight: "bold"
-              }}
-            >
-              {room.currentCount >= room.maxCapacity ? "Queue Full" : loading ? "Joining..." : "Join Queue"}
-            </button>
-          </form>
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="spinner" style={{ width: '1rem', height: '1rem', marginRight: '0' }}></div>
+                    <span>Searching...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>🔍</span>
+                    <span>Search</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
-      )}
 
-      {/* Current Queue Display */}
-      {room && queue.length > 0 && (
-        <div>
-          <h3>Current Queue ({queue.filter(q => q.status === 'waiting').length} waiting)</h3>
-          <div style={{ display: "grid", gap: "0.5rem" }}>
-            {queue
-              .filter(q => ['waiting', 'in_progress'].includes(q.status))
-              .sort((a, b) => a.queueNumber - b.queueNumber)
-              .map((customer, index) => (
-                <div 
-                  key={customer.id}
-                  style={{ 
-                    border: "1px solid #ddd", 
-                    borderRadius: "4px", 
-                    padding: "1rem",
-                    backgroundColor: customer.status === 'in_progress' ? "#d4edda" : "white",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center"
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                    <div style={{ 
-                      backgroundColor: customer.status === 'in_progress' ? "#28a745" : "#007bff", 
-                      color: "white", 
-                      borderRadius: "50%", 
-                      width: "30px", 
-                      height: "30px", 
-                      display: "flex", 
-                      alignItems: "center", 
-                      justifyContent: "center",
-                      fontSize: "0.9rem",
-                      fontWeight: "bold"
-                    }}>
-                      {customer.queueNumber}
+        {/* Room Info */}
+        {room && (
+          <div className="card mb-6 fade-in">
+            <div className="card-header" style={{ background: 'linear-gradient(135deg, var(--light-blue), var(--light-teal))' }}>
+              <h2 style={{ color: 'var(--primary-blue)', margin: '0' }}>🏪 {room.name}</h2>
+            </div>
+            <div className="card-body">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
+                <div>
+                  <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>📋 Room Details</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div className="flex items-center gap-2">
+                      <span>🏢</span>
+                      <span><strong>Type:</strong> {room.roomType}</span>
                     </div>
-                    <div>
-                      <strong>{customer.customerName}</strong>
-                      {customer.status === 'in_progress' && (
-                        <span style={{ 
-                          marginLeft: "0.5rem",
-                          backgroundColor: "#28a745",
-                          color: "white",
-                          padding: "0.25rem 0.5rem",
-                          borderRadius: "4px",
-                          fontSize: "0.8rem"
-                        }}>
-                          Being Served
-                        </span>
-                      )}
-                      {customer.priority !== 'normal' && (
-                        <span style={{ 
-                          marginLeft: "0.5rem",
-                          backgroundColor: customer.priority === 'urgent' ? '#dc3545' : '#6f42c1',
-                          color: 'white',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '4px',
-                          fontSize: '0.8rem'
-                        }}>
-                          {customer.priority.toUpperCase()}
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <span>🕒</span>
+                      <span><strong>Hours:</strong> {room.operatingHours ? `${room.operatingHours.start} - ${room.operatingHours.end}` : 'Not specified'}</span>
                     </div>
                   </div>
                 </div>
-              ))}
+                <div>
+                  <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>📊 Queue Status</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div className="flex items-center gap-2">
+                      <span>👥</span>
+                      <span><strong>Capacity:</strong> {room.currentCount} / {room.maxCapacity}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>🏷️</span>
+                      <span><strong>Code:</strong> <code style={{ background: 'var(--gray-100)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>{room.roomCode}</code></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {room.description && (
+                <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)' }}>
+                  <p style={{ color: 'var(--gray-600)', fontStyle: 'italic', margin: '0' }}>
+                    💬 {room.description}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* My Queue Status */}
+        {myQueueStatus && (
+          <div className="card mb-6 fade-in">
+            <div className="card-header" style={{ 
+              background: myQueueStatus.status === 'in_progress' 
+                ? 'linear-gradient(135deg, #d1fae5, #a7f3d0)' 
+                : 'linear-gradient(135deg, var(--light-blue), var(--light-teal))'
+            }}>
+              <h2 style={{ color: myQueueStatus.status === 'in_progress' ? 'var(--success)' : 'var(--primary-blue)', margin: '0' }}>
+                {myQueueStatus.status === 'in_progress' ? '🔥 You\'re Being Served!' : '⏳ Your Queue Status'}
+              </h2>
+            </div>
+            <div className="card-body">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="flex items-center gap-4 mb-3">
+                    <div style={{ 
+                      background: myQueueStatus.status === 'in_progress' ? 'var(--success)' : 'var(--primary-blue)', 
+                      color: 'white', 
+                      borderRadius: '50%', 
+                      width: '60px', 
+                      height: '60px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      fontSize: '1.5rem',
+                      fontWeight: 'bold'
+                    }}>
+                      #{myQueueStatus.queueNumber}
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                        Queue Number #{myQueueStatus.queueNumber}
+                      </h3>
+                      <div className="flex items-center gap-4">
+                        <span className={`status-badge ${myQueueStatus.status === 'in_progress' ? 'status-in-progress' : 'status-waiting'}`}>
+                          {myQueueStatus.status === 'in_progress' ? '🔥 Being Served' : '⏳ Waiting'}
+                        </span>
+                        {myQueueStatus.status === 'waiting' && getQueuePosition() && (
+                          <span style={{ color: 'var(--gray-600)' }}>
+                            📍 Position {getQueuePosition()} in line
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {myQueueStatus.estimatedWaitTime > 0 && (
+                    <p style={{ color: 'var(--gray-600)', margin: '0' }}>
+                      ⌛ Estimated wait: {myQueueStatus.estimatedWaitTime} minutes
+                    </p>
+                  )}
+                </div>
+                {myQueueStatus.status === 'waiting' && (
+                  <button 
+                    onClick={handleLeaveQueue}
+                    className="btn btn-danger"
+                  >
+                    🚪 Leave Queue
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Join Queue Form */}
+        {room && !myQueueStatus && (
+          <div className="card mb-6 fade-in">
+            <div className="card-header">
+              <h2 style={{ color: 'var(--primary-teal)', margin: '0' }}>🎯 Join Queue</h2>
+            </div>
+            <div className="card-body">
+              <form onSubmit={handleJoinQueue} style={{ display: 'grid', gap: '1.5rem' }}>
+                <div className="form-group">
+                  <label className="form-label">👤 Your Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Enter your full name"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">⭐ Priority Level</label>
+                  <select
+                    className="form-input"
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    disabled={loading}
+                  >
+                    <option value="normal">🟢 Normal</option>
+                    <option value="urgent">🚨 Urgent</option>
+                    <option value="vip">⭐ VIP</option>
+                  </select>
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={loading || room.currentCount >= room.maxCapacity}
+                  className={`btn ${room.currentCount >= room.maxCapacity ? 'btn-ghost' : 'btn-success'}`}
+                  style={{ fontSize: '1.1rem', padding: '1rem 2rem' }}
+                >
+                  {room.currentCount >= room.maxCapacity ? (
+                    <>
+                      <span>🚫</span>
+                      <span>Queue Full</span>
+                    </>
+                  ) : loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="spinner" style={{ width: '1rem', height: '1rem', marginRight: '0' }}></div>
+                      <span>Joining...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <span>🎯</span>
+                      <span>Join Queue</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Current Queue Display */}
+        {room && queue.length > 0 && (
+          <div className="card fade-in">
+            <div className="card-header">
+              <h2 style={{ color: 'var(--primary-blue)', margin: '0' }}>
+                📋 Current Queue ({queue.filter(q => q.status === 'waiting').length} waiting)
+              </h2>
+            </div>
+            <div className="card-body">
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                {queue
+                  .filter(q => ['waiting', 'in_progress'].includes(q.status))
+                  .sort((a, b) => a.queueNumber - b.queueNumber)
+                  .map((customer, index) => (
+                    <div 
+                      key={customer.id}
+                      className="card slide-in"
+                      style={{ 
+                        background: customer.status === 'in_progress' 
+                          ? 'linear-gradient(135deg, #d1fae5, #a7f3d0)' 
+                          : 'var(--white)',
+                        border: customer.status === 'in_progress' 
+                          ? '2px solid var(--success)' 
+                          : '1px solid var(--gray-200)'
+                      }}
+                    >
+                      <div className="card-body">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-4">
+                            <div style={{ 
+                              background: customer.status === 'in_progress' ? 'var(--success)' : 'var(--primary-teal)', 
+                              color: 'white', 
+                              borderRadius: '50%', 
+                              width: '50px', 
+                              height: '50px', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              fontWeight: 'bold',
+                              fontSize: '1.2rem'
+                            }}>
+                              {customer.queueNumber}
+                            </div>
+                            <div>
+                              <h4 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                                👤 {customer.customerName}
+                              </h4>
+                              <div className="flex items-center gap-2">
+                                {customer.status === 'in_progress' && (
+                                  <span className="status-badge status-in-progress">
+                                    🔥 Being Served
+                                  </span>
+                                )}
+                                {customer.priority !== 'normal' && (
+                                  <span className={`status-badge ${customer.priority === 'urgent' ? 'status-urgent' : 'status-vip'}`}>
+                                    {customer.priority === 'urgent' ? '🚨 URGENT' : '⭐ VIP'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

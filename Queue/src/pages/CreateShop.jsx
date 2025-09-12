@@ -66,7 +66,25 @@ export default function CreateShop() {
       const response = await api.post("/shops", formData);
       
       if (response.data.success) {
-        alert(`Shop created successfully! Your shop code is: ${response.data.shop.shopCode}`);
+        // Create success notification
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-white border-l-4 border-green-500 p-4 rounded-lg shadow-lg z-50 fade-in';
+        notification.innerHTML = `
+          <div class="flex items-center">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+            </div>
+            <div class="ml-3">
+              <p class="text-sm font-medium text-gray-900">Shop Created Successfully!</p>
+              <p class="text-sm text-gray-500">Shop code: ${response.data.shop.shopCode}</p>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
+        
         navigate("/my-shops");
       }
     } catch (err) {
@@ -80,141 +98,246 @@ export default function CreateShop() {
   };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
-      <h2>Create New Shop</h2>
-      
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        {error && <p style={{ color: "red", backgroundColor: "#ffe6e6", padding: "0.5rem", borderRadius: "4px" }}>{error}</p>}
-        
-        <div>
-          <label>Shop Name *</label>
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleInputChange}
-            placeholder="Enter shop name"
-            required
-            style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
-          />
+    <div style={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, var(--light-blue) 0%, var(--light-teal) 100%)', 
+      padding: '2rem' 
+    }}>
+      <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+        {/* Header */}
+        <div className="card mb-6 fade-in">
+          <div className="card-header">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 style={{ color: 'var(--primary-blue)', marginBottom: '0.5rem' }}>
+                  🏪 Create New Shop
+                </h1>
+                <p style={{ color: 'var(--gray-600)', margin: '0' }}>
+                  Set up your shop and start managing queues
+                </p>
+              </div>
+              <button 
+                onClick={() => navigate("/")}
+                className="btn btn-ghost"
+              >
+                ← Back to Dashboard
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label>Address *</label>
-          <textarea
-            name="address"
-            value={formData.address}
-            onChange={handleInputChange}
-            placeholder="Enter shop address"
-            required
-            rows="3"
-            style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", resize: "vertical" }}
-          />
-        </div>
+        {/* Error Notification */}
+        {error && (
+          <div className="card mb-6 fade-in" style={{ borderLeft: '4px solid var(--error)' }}>
+            <div className="card-body" style={{ background: '#fef2f2', color: 'var(--error)' }}>
+              <div className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <div>
-          <label>Category *</label>
-          <select
-            name="category"
-            value={formData.category}
-            onChange={handleInputChange}
-            required
-            style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
-          >
-            <option value="">Select category</option>
-            {categories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </div>
+        {/* Form */}
+        <div className="card fade-in">
+          <div className="card-body">
+            <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1.5rem' }}>
+              {/* Basic Information */}
+              <div>
+                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>📋 Basic Information</h3>
+                
+                <div className="form-group">
+                  <label className="form-label">🏪 Shop Name *</label>
+                  <input
+                    type="text"
+                    name="name"
+                    className="form-input"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Enter your shop name"
+                    required
+                    disabled={loading}
+                  />
+                </div>
 
-        <div>
-          <label>Custom ID (Optional)</label>
-          <input
-            type="text"
-            name="customId"
-            value={formData.customId}
-            onChange={handleInputChange}
-            placeholder="e.g., my_shop_123 (3-20 characters, letters, numbers, underscore only)"
-            pattern="[a-zA-Z0-9_]{3,20}"
-            style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
-          />
-          {isCheckingCustomId && <small style={{ color: "blue" }}>Checking availability...</small>}
-          {customIdStatus && <small style={{ color: customIdStatus.includes('✅') ? 'green' : 'red' }}>{customIdStatus}</small>}
-          <small style={{ display: "block", color: "#666", marginTop: "0.25rem" }}>
-            Custom ID allows easy sharing (like Instagram usernames). If not provided, you'll get an auto-generated shop code.
-          </small>
-        </div>
+                <div className="form-group">
+                  <label className="form-label">📍 Address *</label>
+                  <textarea
+                    name="address"
+                    className="form-input"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    placeholder="Enter your shop address"
+                    required
+                    rows="3"
+                    disabled={loading}
+                    style={{ resize: 'vertical', minHeight: '80px' }}
+                  />
+                </div>
 
-        <div>
-          <label>Description</label>
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleInputChange}
-            placeholder="Brief description of your shop"
-            rows="3"
-            maxLength="500"
-            style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem", resize: "vertical" }}
-          />
-        </div>
+                <div className="form-group">
+                  <label className="form-label">🏷️ Category *</label>
+                  <select
+                    name="category"
+                    className="form-input"
+                    value={formData.category}
+                    onChange={handleInputChange}
+                    required
+                    disabled={loading}
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map(cat => (
+                      <option key={cat} value={cat}>
+                        {cat === 'Restaurant' && '🍽️ '}
+                        {cat === 'Retail' && '🛍️ '}
+                        {cat === 'Services' && '🔧 '}
+                        {cat === 'Electronics' && '📱 '}
+                        {cat === 'Grocery' && '🛒 '}
+                        {cat === 'Fashion' && '👗 '}
+                        {cat === 'Healthcare' && '🏥 '}
+                        {cat === 'Beauty' && '💄 '}
+                        {cat === 'Automotive' && '🚗 '}
+                        {cat === 'Other' && '📦 '}
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-        <div>
-          <label>Phone</label>
-          <input
-            type="tel"
-            name="phone"
-            value={formData.phone}
-            onChange={handleInputChange}
-            placeholder="Contact phone number"
-            style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
-          />
-        </div>
+              {/* Custom ID Section */}
+              <div>
+                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>🎯 Shop Identification</h3>
+                
+                <div className="form-group">
+                  <label className="form-label">🏷️ Custom ID (Optional)</label>
+                  <input
+                    type="text"
+                    name="customId"
+                    className="form-input"
+                    value={formData.customId}
+                    onChange={handleInputChange}
+                    placeholder="e.g., my_shop_123"
+                    pattern="[a-zA-Z0-9_]{3,20}"
+                    disabled={loading}
+                  />
+                  <div style={{ marginTop: '0.5rem' }}>
+                    {isCheckingCustomId && (
+                      <div className="flex items-center gap-2" style={{ color: 'var(--primary-blue)' }}>
+                        <div className="spinner" style={{ width: '1rem', height: '1rem', marginRight: '0' }}></div>
+                        <small>Checking availability...</small>
+                      </div>
+                    )}
+                    {customIdStatus && (
+                      <small style={{ 
+                        color: customIdStatus.includes('✅') ? 'var(--success)' : 'var(--error)',
+                        fontWeight: '500'
+                      }}>
+                        {customIdStatus}
+                      </small>
+                    )}
+                  </div>
+                  <small style={{ 
+                    display: 'block', 
+                    color: 'var(--gray-500)', 
+                    marginTop: '0.5rem',
+                    padding: '0.75rem',
+                    background: 'var(--gray-50)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.8rem'
+                  }}>
+                    💡 Custom ID allows easy sharing (like Instagram usernames). 
+                    Use 3-20 characters with letters, numbers, and underscores only. 
+                    If not provided, you'll get an auto-generated shop code.
+                  </small>
+                </div>
+              </div>
 
-        <div>
-          <label>Email</label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleInputChange}
-            placeholder="Contact email"
-            style={{ width: "100%", padding: "0.5rem", marginTop: "0.25rem" }}
-          />
-        </div>
+              {/* Additional Details */}
+              <div>
+                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>📝 Additional Details</h3>
+                
+                <div className="form-group">
+                  <label className="form-label">📄 Description</label>
+                  <textarea
+                    name="description"
+                    className="form-input"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    placeholder="Brief description of your shop and services"
+                    rows="3"
+                    maxLength="500"
+                    disabled={loading}
+                    style={{ resize: 'vertical', minHeight: '80px' }}
+                  />
+                  <small style={{ color: 'var(--gray-500)', fontSize: '0.8rem' }}>
+                    {formData.description.length}/500 characters
+                  </small>
+                </div>
 
-        <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{ 
-              padding: "0.75rem 1.5rem", 
-              backgroundColor: "#007bff", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "4px",
-              cursor: loading ? "not-allowed" : "pointer"
-            }}
-          >
-            {loading ? "Creating..." : "Create Shop"}
-          </button>
-          
-          <button 
-            type="button" 
-            onClick={() => navigate("/")}
-            style={{ 
-              padding: "0.75rem 1.5rem", 
-              backgroundColor: "#6c757d", 
-              color: "white", 
-              border: "none", 
-              borderRadius: "4px",
-              cursor: "pointer"
-            }}
-          >
-            Cancel
-          </button>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">📞 Phone</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      className="form-input"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      placeholder="Contact phone number"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">📧 Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      className="form-input"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      placeholder="Contact email address"
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-4 justify-end" style={{ marginTop: '2rem' }}>
+                <button 
+                  type="button" 
+                  onClick={() => navigate("/")}
+                  className="btn btn-ghost"
+                  disabled={loading}
+                >
+                  ❌ Cancel
+                </button>
+                
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="btn btn-primary"
+                  style={{ fontSize: '1rem', padding: '0.75rem 2rem' }}
+                >
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="spinner" style={{ width: '1rem', height: '1rem', marginRight: '0' }}></div>
+                      <span>Creating Shop...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <span>🚀</span>
+                      <span>Create Shop</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
