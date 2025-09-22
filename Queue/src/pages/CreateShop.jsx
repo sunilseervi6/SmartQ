@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
+import { AuthContext } from "../context/AuthContext";
 
 export default function CreateShop() {
   const [formData, setFormData] = useState({
@@ -17,6 +18,30 @@ export default function CreateShop() {
   const [isCheckingCustomId, setIsCheckingCustomId] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
+
+  useEffect(() => {
+    // Frontend guard: only owners can access this page
+    if (!user) {
+      navigate("/login", { replace: true });
+    } else if (user.role !== 'owner') {
+      // Show a lightweight notification and redirect to dashboard
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-white border-l-4 border-yellow-500 p-4 rounded-lg shadow-lg z-50 fade-in';
+      notification.innerHTML = `
+        <div class="flex items-center">
+          <div class="flex-shrink-0">⚠️</div>
+          <div class="ml-3">
+            <p class="text-sm font-medium text-gray-900">Owner access required</p>
+            <p class="text-sm text-gray-500">Please register/login as a Shop Owner to create shops.</p>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 3500);
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate]);
 
   const categories = [
     'Restaurant', 'Retail', 'Services', 'Electronics', 

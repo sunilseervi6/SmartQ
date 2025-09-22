@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     // check if user exists
     const existingUser = await User.findOne({ email });
@@ -19,6 +19,7 @@ router.post("/register", async (req, res) => {
       name,
       email,
       password, // Let the User model's pre-save middleware handle hashing
+      role: role === 'owner' ? 'owner' : 'customer'
     });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -29,6 +30,7 @@ router.post("/register", async (req, res) => {
       id: user._id,
       name: user.name,
       email: user.email,
+      role: user.role,
       token,
     });
   } catch (err) {
@@ -62,6 +64,7 @@ router.post("/login", async (req, res) => {
       id: user._id,
       name: user.name,
       email: user.email,
+      role: user.role,
       token,
     });
   } catch (err) {

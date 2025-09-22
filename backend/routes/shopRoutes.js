@@ -6,14 +6,14 @@ import {
   updateShop,
   checkCustomIdAvailability 
 } from "../controllers/shopController.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, ownerOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // Protected routes (require authentication)
-router.post("/", protect, createShop);
-router.get("/", protect, getUserShops);
-router.put("/:id", protect, updateShop);
+router.post("/", protect, ownerOnly, createShop);
+router.get("/", protect, ownerOnly, getUserShops);
+router.put("/:id", protect, ownerOnly, updateShop);
 
 // Public routes
 router.get("/check-customid/:customId", checkCustomIdAvailability);

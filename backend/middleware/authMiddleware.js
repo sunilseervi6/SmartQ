@@ -20,5 +20,22 @@ const protect = async (req, res, next) => {
   }
 };
 
-export { protect };
+const ownerOnly = (req, res, next) => {
+  console.log("ownerOnly middleware - User:", req.user);
+  console.log("ownerOnly middleware - User role:", req.user?.role);
+  
+  if (!req.user) {
+    return res.status(401).json({ message: "Not authorized" });
+  }
+  if (req.user.role !== 'owner') {
+    return res.status(403).json({ 
+      message: "Owner access required", 
+      userRole: req.user.role,
+      debug: "User role is not 'owner'"
+    });
+  }
+  next();
+};
+
+export { protect, ownerOnly };
 export default protect;

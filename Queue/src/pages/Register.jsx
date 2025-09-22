@@ -6,6 +6,7 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isOwner, setIsOwner] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ export default function Register() {
     
     try {
       // Call backend register API
-      await api.post("/auth/register", { name, email, password });
+      await api.post("/auth/register", { name, email, password, role: isOwner ? 'owner' : 'customer' });
       
       // Registration successful - redirect to login
       const notification = document.createElement('div');
@@ -134,6 +135,25 @@ export default function Register() {
               <small style={{ color: 'var(--gray-500)', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
                 Password must be at least 6 characters long
               </small>
+            </div>
+
+            {/* Role selection */}
+            <div className="form-group" style={{ marginTop: '1rem' }}>
+              <label className="form-label" htmlFor="isOwner">
+                🏪 Register as Shop Owner
+              </label>
+              <div className="flex items-center gap-2">
+                <input 
+                  id="isOwner" 
+                  type="checkbox" 
+                  checked={isOwner} 
+                  onChange={(e) => setIsOwner(e.target.checked)}
+                  disabled={loading}
+                />
+                <span style={{ color: 'var(--gray-600)' }}>
+                  Enable this if you'll create and manage shops
+                </span>
+              </div>
             </div>
 
             <button 
