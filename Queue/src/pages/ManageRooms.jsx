@@ -12,6 +12,10 @@ export default function ManageRooms() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [roomToDelete, setRoomToDelete] = useState(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     roomType: "",
@@ -94,16 +98,36 @@ export default function ManageRooms() {
     setIsCreating(false);
   };
 
-  const handleDeleteRoom = async (roomId) => {
-    if (window.confirm("Are you sure you want to delete this room?")) {
-      try {
-        await api.delete(`/rooms/${roomId}`);
-        setRooms(rooms.filter(room => room.id !== roomId));
-        showNotification("🗑️ Room deleted successfully");
-      } catch (err) {
-        showNotification("Failed to delete room", 'error');
-      }
+  const openDeleteModal = (room) => {
+    setRoomToDelete(room);
+    setShowDeleteModal(true);
+    setDeletePassword("");
+  };
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setRoomToDelete(null);
+    setDeletePassword("");
+  };
+
+  const handleDeleteRoom = async () => {
+    if (!deletePassword) {
+      showNotification("Please enter your password", 'error');
+      return;
     }
+
+    setIsDeleting(true);
+    try {
+      await api.delete(`/rooms/${roomToDelete.id}`, {
+        data: { password: deletePassword }
+      });
+      setRooms(rooms.filter(room => room.id !== roomToDelete.id));
+      showNotification("🗑️ Room deleted successfully");
+      closeDeleteModal();
+    } catch (err) {
+      showNotification(err.response?.data?.message || "Failed to delete room", 'error');
+    }
+    setIsDeleting(false);
   };
 
   const handleShareRoom = (room) => {
@@ -351,7 +375,7 @@ export default function ManageRooms() {
                     📤 Share
                   </button>
                   <button 
-                    onClick={() => handleDeleteRoom(room.id)}
+                    onClick={() => openDeleteModal(room)}
                     className="btn btn-danger"
                   >
                     🗑️
@@ -360,6 +384,60 @@ export default function ManageRooms() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>⚠️ Delete Room</h2>
+            </div>
+            <div className="modal-body">
+              <p className="warning-text">
+                Are you sure you want to delete <strong>{roomToDelete?.name}</strong>?
+              </p>
+              <p className="warning-subtext">
+                ⚠️ This will permanently delete the room and all associated queues. This action cannot be undone.
+              </p>
+              <div className="form-group">
+                <label className="form-label">Enter your password to confirm:</label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Your login password"
+                  className="form-input"
+                  autoFocus
+                  onKeyPress={(e) => e.key === 'Enter' && handleDeleteRoom()}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                onClick={handleDeleteRoom}
+                disabled={isDeleting || !deletePassword}
+                className="btn btn-danger"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="loading-spinner small"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  '🗑️ Delete Room'
+                )}
+              </button>
+              <button
+                onClick={closeDeleteModal}
+                disabled={isDeleting}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

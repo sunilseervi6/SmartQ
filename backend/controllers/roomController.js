@@ -1,6 +1,7 @@
 import Room from "../models/Room.js";
 import Shop from "../models/Shop.js";
 import Queue from "../models/Queue.js";
+import User from "../models/User.js";
 
 // Create a new room
 export const createRoom = async (req, res) => {
@@ -178,11 +179,32 @@ export const updateRoom = async (req, res) => {
   }
 };
 
-// Delete room (soft delete)
+// Delete room (requires password confirmation)
 export const deleteRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
+    const { password } = req.body;
     const userId = req.user.id;
+
+    // Validate password is provided
+    if (!password) {
+      return res.status(400).json({ 
+        message: "Password is required to delete the room" 
+      });
+    }
+
+    // Find user and verify password
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isPasswordValid = await user.matchPassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ 
+        message: "Incorrect password. Room deletion failed." 
+      });
+    }
 
     // Find room and verify ownership through shop
     const room = await Room.findById(roomId).populate('shopId');

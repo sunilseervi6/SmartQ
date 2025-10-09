@@ -7,6 +7,10 @@ export default function MyShops() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notification, setNotification] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [shopToDelete, setShopToDelete] = useState(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,6 +44,38 @@ export default function MyShops() {
       : `Check out ${shop.name}! Shop Code: ${shop.shopCode}`;
     navigator.clipboard.writeText(shareText);
     showNotification("📋 Share link copied to clipboard!");
+  };
+
+  const openDeleteModal = (shop) => {
+    setShopToDelete(shop);
+    setShowDeleteModal(true);
+    setDeletePassword("");
+  };
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setShopToDelete(null);
+    setDeletePassword("");
+  };
+
+  const handleDeleteShop = async () => {
+    if (!deletePassword) {
+      showNotification("Please enter your password", 'error');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await api.delete(`/shops/${shopToDelete.id}`, {
+        data: { password: deletePassword }
+      });
+      setShops(shops.filter(shop => shop.id !== shopToDelete.id));
+      showNotification("🗑️ Shop deleted successfully");
+      closeDeleteModal();
+    } catch (err) {
+      showNotification(err.response?.data?.message || "Failed to delete shop", 'error');
+    }
+    setIsDeleting(false);
   };
 
   if (loading) {
@@ -169,6 +205,12 @@ export default function MyShops() {
                   >
                     📤 Share
                   </button>
+                  <button 
+                    onClick={() => openDeleteModal(shop)}
+                    className="btn btn-danger"
+                  >
+                    🗑️
+                  </button>
                 </div>
               </div>
             </div>
@@ -184,6 +226,60 @@ export default function MyShops() {
           ← Back to Dashboard
         </button>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>⚠️ Delete Shop</h2>
+            </div>
+            <div className="modal-body">
+              <p className="warning-text">
+                Are you sure you want to delete <strong>{shopToDelete?.name}</strong>?
+              </p>
+              <p className="warning-subtext">
+                ⚠️ This will permanently delete the shop, all its rooms, and all queues. This action cannot be undone.
+              </p>
+              <div className="form-group">
+                <label className="form-label">Enter your password to confirm:</label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Your login password"
+                  className="form-input"
+                  autoFocus
+                  onKeyPress={(e) => e.key === 'Enter' && handleDeleteShop()}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                onClick={handleDeleteShop}
+                disabled={isDeleting || !deletePassword}
+                className="btn btn-danger"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="loading-spinner small"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  '🗑️ Delete Shop'
+                )}
+              </button>
+              <button
+                onClick={closeDeleteModal}
+                disabled={isDeleting}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
