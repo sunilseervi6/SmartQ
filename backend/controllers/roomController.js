@@ -2,6 +2,7 @@ import Room from "../models/Room.js";
 import Shop from "../models/Shop.js";
 import Queue from "../models/Queue.js";
 import User from "../models/User.js";
+import { generateQRCodeDataURL, generateRoomJoinURL } from "../services/qrCodeService.js";
 
 // Create a new room
 export const createRoom = async (req, res) => {
@@ -33,6 +34,12 @@ export const createRoom = async (req, res) => {
       operatingHours
     });
 
+    // Generate QR code data URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const joinUrl = generateRoomJoinURL(room.roomCode, frontendUrl);
+    room.qrCodeData = joinUrl;
+    await room.save();
+
     res.status(201).json({
       success: true,
       message: "Room created successfully",
@@ -46,6 +53,7 @@ export const createRoom = async (req, res) => {
         operatingHours: room.operatingHours,
         isActive: room.isActive,
         currentQueueCount: room.currentQueueCount,
+        qrCodeData: room.qrCodeData,
         createdAt: room.createdAt
       }
     });
@@ -82,6 +90,7 @@ export const getShopRooms = async (req, res) => {
         operatingHours: room.operatingHours,
         isActive: room.isActive,
         currentQueueCount: room.currentQueueCount,
+        qrCodeData: room.qrCodeData,
         createdAt: room.createdAt
       }))
     });
@@ -116,6 +125,7 @@ export const getRoomByCode = async (req, res) => {
         maxCapacity: room.maxCapacity,
         operatingHours: room.operatingHours,
         currentQueueCount: room.currentQueueCount,
+        qrCodeData: room.qrCodeData,
         shop: room.shopId,
         createdAt: room.createdAt
       }
@@ -175,6 +185,42 @@ export const updateRoom = async (req, res) => {
     });
   } catch (err) {
     console.error("Update room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get QR code for room
+export const getRoomQRCode = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    // Generate QR code data URL if not already present
+    let qrCodeData = room.qrCodeData;
+    if (!qrCodeData) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      qrCodeData = generateRoomJoinURL(room.roomCode, frontendUrl);
+      room.qrCodeData = qrCodeData;
+      await room.save();
+    }
+
+    // Generate QR code image as base64 data URL
+    const qrCodeImage = await generateQRCodeDataURL(qrCodeData);
+
+    res.json({
+      success: true,
+      qrCode: {
+        imageDataURL: qrCodeImage,
+        joinURL: qrCodeData,
+        roomCode: room.roomCode
+      }
+    });
+  } catch (err) {
+    console.error("Get QR code error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };

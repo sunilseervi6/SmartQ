@@ -51,6 +51,9 @@ const roomSchema = new mongoose.Schema({
   currentQueueCount: {
     type: Number,
     default: 0
+  },
+  qrCodeData: {
+    type: String  // Stores the data/URL encoded in QR code
   }
 }, {
   timestamps: true

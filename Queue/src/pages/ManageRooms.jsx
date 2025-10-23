@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
+import QRCodeDisplay from "../components/QRCodeDisplay";
 
 export default function ManageRooms() {
   const { shopId } = useParams();
@@ -357,6 +358,11 @@ export default function ManageRooms() {
                     <span className="code-label">Room Code:</span>
                     <code className="room-code">{room.roomCode}</code>
                   </div>
+                  <QRCodeDisplay
+                    roomId={room.id}
+                    roomCode={room.roomCode}
+                    qrCodeData={room.qrCodeData}
+                  />
                 </div>
               </div>
 

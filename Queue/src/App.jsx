@@ -10,6 +10,7 @@ import MyShops from "./pages/MyShops";
 import ManageRooms from "./pages/ManageRooms";
 import QueueDashboard from "./pages/QueueDashboard";
 import JoinQueue from "./pages/JoinQueue";
+import QuickJoin from "./pages/QuickJoin";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/join" element={<QuickJoin />} />
 
           {/* Protected Routes */}
           <Route
