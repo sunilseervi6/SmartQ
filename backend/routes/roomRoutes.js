@@ -5,20 +5,22 @@ import {
   getRoomByCode,
   updateRoom,
   deleteRoom,
-  getRoomQRCode
+  getRoomQRCode,
+  browseRooms
 } from "../controllers/roomController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+// Public routes (must come before protected routes to avoid conflicts)
+router.get("/browse", browseRooms);  // Browse/search rooms with filters
+router.get("/code/:roomCode", getRoomByCode);
+router.get("/:roomId/qr", getRoomQRCode);  // QR code endpoint
+
 // Protected routes (require authentication)
 router.post("/shop/:shopId", protect, createRoom);
 router.get("/shop/:shopId", protect, getShopRooms);
-router.get("/:roomId/qr", getRoomQRCode);  // QR code endpoint (can be public or protected as needed)
 router.put("/:roomId", protect, updateRoom);
 router.delete("/:roomId", protect, deleteRoom);
-
-// Public routes
-router.get("/code/:roomCode", getRoomByCode);
 
 export default router;

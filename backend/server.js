@@ -8,6 +8,9 @@ import authRoutes from "./routes/authRoutes.js";
 import shopRoutes from "./routes/shopRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
+import geocodingRoutes from "./routes/geocodingRoutes.js";
+import favoriteRoutes from "./routes/favoriteRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -34,6 +37,12 @@ app.set('io', io);
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
+  // Join user's personal notification room
+  socket.on('join-user-room', (userId) => {
+    socket.join(`user-${userId}`);
+    console.log(`Socket ${socket.id} joined user-${userId}`);
+  });
+
   // Join room for queue updates
   socket.on('join-room', (roomId) => {
     socket.join(`room-${roomId}`);
@@ -55,6 +64,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/shops", shopRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/queue", queueRoutes);
+app.use("/api/geocoding", geocodingRoutes);
+app.use("/api/favorites", favoriteRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

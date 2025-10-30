@@ -1,6 +1,8 @@
 import Queue from "../models/Queue.js";
 import Room from "../models/Room.js";
 import Shop from "../models/Shop.js";
+import User from "../models/User.js";
+import { createNotification } from "./notificationController.js";
 import mongoose from "mongoose";
 
 // Join queue (customer)
@@ -78,6 +80,23 @@ export const joinQueue = async (req, res) => {
     const estimatedWaitTime = peopleAhead * 5; // 5 minutes per person
     await Queue.findByIdAndUpdate(queueEntry._id, { estimatedWaitTime });
 
+    // Get user preferences
+    const user = await User.findById(customerId).select('notificationPreferences');
+
+    // Create notification for queue join
+    if (user.notificationPreferences.queueJoined) {
+      const shopData = await Shop.findById(room.shopId).select('name');
+      await createNotification(customerId, {
+        type: 'queue_joined',
+        title: 'Joined Queue',
+        message: `You've joined the queue at ${shopData.name} - ${room.name}. Your queue number is ${queueNumber}.`,
+        queueId: queueEntry._id,
+        roomId: room._id,
+        shopId: room.shopId,
+        data: { queueNumber, estimatedWaitTime: peopleAhead * 5 }
+      });
+    }
+
     // Emit real-time update to all clients in this room
     const io = req.app.get('io');
     if (io) {
@@ -91,6 +110,15 @@ export const joinQueue = async (req, res) => {
           status: queueEntry.status,
           priority: queueEntry.priority
         }
+      });
+
+      // Send notification to user's personal room
+      io.to(`user-${customerId}`).emit('notification-received', {
+        type: 'queue_joined',
+        title: 'Joined Queue',
+        message: `Queue number: ${queueNumber}`,
+        queueNumber,
+        estimatedWaitTime: peopleAhead * 5
       });
     }
 
@@ -151,10 +179,10 @@ export const getRoomQueue = async (req, res) => {
     // Try to find room by ID first, then by roomCode
     let room;
     if (mongoose.Types.ObjectId.isValid(roomId)) {
-      room = await Room.findOne({ _id: roomId, isActive: true });
+      room = await Room.findOne({ _id: roomId, isActive: true }).populate('shopId');
     }
     if (!room) {
-      room = await Room.findOne({ roomCode: roomId, isActive: true });
+      room = await Room.findOne({ roomCode: roomId, isActive: true }).populate('shopId');
     }
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
@@ -167,6 +195,25 @@ export const getRoomQueue = async (req, res) => {
     .populate('customerId', 'name')
     .sort({ queueNumber: 1 });
 
+    // Build shop details if available
+    let shopDetails = null;
+    if (room.shopId) {
+      shopDetails = {
+        id: room.shopId._id,
+        name: room.shopId.name,
+        address: room.shopId.address,
+        category: room.shopId.category,
+        description: room.shopId.description,
+        phone: room.shopId.phone,
+        email: room.shopId.email,
+        images: room.shopId.images || [],
+        location: room.shopId.location,
+        city: room.shopId.city,
+        state: room.shopId.state,
+        country: room.shopId.country
+      };
+    }
+
     res.json({
       success: true,
       room: {
@@ -177,7 +224,8 @@ export const getRoomQueue = async (req, res) => {
         description: room.description,
         operatingHours: room.operatingHours,
         currentCount: queue.length,
-        maxCapacity: room.maxCapacity
+        maxCapacity: room.maxCapacity,
+        shop: shopDetails
       },
       queue: queue.map((entry, index) => ({
         id: entry._id,
@@ -232,6 +280,37 @@ export const callNextCustomer = async (req, res) => {
       status: 'in_progress',
       calledAt: new Date()
     });
+
+    // Create "Your Turn" notification
+    const user = await User.findById(nextCustomer.customerId._id).select('notificationPreferences');
+    if (user.notificationPreferences.yourTurn) {
+      await createNotification(nextCustomer.customerId._id, {
+        type: 'your_turn',
+        title: "It's Your Turn!",
+        message: `Please proceed to ${room.name}. Queue number: ${nextCustomer.queueNumber}`,
+        queueId: nextCustomer._id,
+        roomId: room._id,
+        shopId: room.shopId._id,
+        data: { queueNumber: nextCustomer.queueNumber }
+      });
+    }
+
+    // Emit real-time notification
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`room-${room._id}`).emit('queue-updated', {
+        type: 'customer-called',
+        roomId: room._id
+      });
+
+      // Send to user's personal room
+      io.to(`user-${nextCustomer.customerId._id}`).emit('notification-received', {
+        type: 'your_turn',
+        title: "It's Your Turn!",
+        message: `Please proceed to ${room.name}`,
+        queueNumber: nextCustomer.queueNumber
+      });
+    }
 
     res.json({
       success: true,

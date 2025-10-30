@@ -51,7 +51,49 @@ const shopSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
-  }
+  },
+  // Location fields for geospatial queries
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      required: false
+    }
+  },
+  city: {
+    type: String,
+    trim: true
+  },
+  state: {
+    type: String,
+    trim: true
+  },
+  zipCode: {
+    type: String,
+    trim: true
+  },
+  country: {
+    type: String,
+    default: 'India'
+  },
+  // Images array - optional
+  images: [{
+    url: String,           // Cloudinary URL
+    publicId: String,      // Cloudinary public ID (for deletion)
+    thumbnail: String,     // Thumbnail URL
+    isPrimary: {
+      type: Boolean,
+      default: false
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 }, {
   timestamps: true
 });
@@ -85,5 +127,8 @@ shopSchema.pre('validate', async function(next) {
 
 // Index for faster queries
 shopSchema.index({ owner: 1 });
+shopSchema.index({ location: '2dsphere' }); // Geospatial index for nearby queries
+shopSchema.index({ category: 1, isActive: 1 });
+shopSchema.index({ city: 1, category: 1 });
 
 export default mongoose.model("Shop", shopSchema);

@@ -2,6 +2,8 @@ import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { AuthContext } from "../context/AuthContext";
+import ImageUpload from "../components/ImageUpload";
+import LocationPicker from "../components/LocationPicker";
 
 export default function CreateShop() {
   const [formData, setFormData] = useState({
@@ -13,6 +15,8 @@ export default function CreateShop() {
     phone: "",
     email: ""
   });
+  const [location, setLocation] = useState(null);
+  const [selectedImages, setSelectedImages] = useState([]);
   const [error, setError] = useState("");
   const [customIdStatus, setCustomIdStatus] = useState("");
   const [isCheckingCustomId, setIsCheckingCustomId] = useState(false);
@@ -44,8 +48,8 @@ export default function CreateShop() {
   }, [user, navigate]);
 
   const categories = [
-    'Restaurant', 'Retail', 'Services', 'Electronics', 
-    'Grocery', 'Fashion', 'Healthcare', 'Beauty', 
+    'Restaurant', 'Retail', 'Services', 'Electronics',
+    'Grocery', 'Fashion', 'Healthcare', 'Beauty',
     'Automotive', 'Other'
   ];
 
@@ -67,7 +71,7 @@ export default function CreateShop() {
 
   const checkCustomIdAvailability = async (customId) => {
     if (!customId || customId.length < 3) return;
-    
+
     setIsCheckingCustomId(true);
     try {
       const response = await api.get(`/shops/check-customid/${customId}`);
@@ -82,15 +86,63 @@ export default function CreateShop() {
     setIsCheckingCustomId(false);
   };
 
+  const handleLocationChange = (newLocation) => {
+    setLocation(newLocation);
+  };
+
+  const handleAddressChange = (detectedAddress) => {
+    // Auto-populate the address field if it's empty
+    if (!formData.address || formData.address.trim() === '') {
+      setFormData(prev => ({
+        ...prev,
+        address: detectedAddress
+      }));
+    }
+  };
+
+  const handleImagesSelected = (images) => {
+    setSelectedImages(images);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const response = await api.post("/shops", formData);
-      
-      if (response.data.success) {
+      // Create shop data with location
+      const shopData = {
+        ...formData,
+        ...(location && {
+          latitude: location.latitude,
+          longitude: location.longitude
+        })
+      };
+
+      // Create shop first
+      const shopResponse = await api.post("/shops", shopData);
+
+      if (shopResponse.data.success) {
+        const shopId = shopResponse.data.shop.id;
+
+        // Upload images if any selected
+        if (selectedImages.length > 0) {
+          const imageFormData = new FormData();
+          selectedImages.forEach((image) => {
+            imageFormData.append('images', image);
+          });
+
+          try {
+            await api.post(`/shops/${shopId}/images`, imageFormData, {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              }
+            });
+          } catch (imgErr) {
+            setError(`Shop created but image upload failed: ${imgErr.response?.data?.message || imgErr.message}`);
+          }
+        }
+
         // Create success notification
         const notification = document.createElement('div');
         notification.className = 'fixed top-4 right-4 bg-white border-l-4 border-green-500 p-4 rounded-lg shadow-lg z-50 fade-in';
@@ -103,13 +155,13 @@ export default function CreateShop() {
             </div>
             <div class="ml-3">
               <p class="text-sm font-medium text-gray-900">Shop Created Successfully!</p>
-              <p class="text-sm text-gray-500">Shop code: ${response.data.shop.shopCode}</p>
+              <p class="text-sm text-gray-500">Shop code: ${shopResponse.data.shop.shopCode}</p>
             </div>
           </div>
         `;
         document.body.appendChild(notification);
         setTimeout(() => notification.remove(), 5000);
-        
+
         navigate("/my-shops");
       }
     } catch (err) {
@@ -123,10 +175,10 @@ export default function CreateShop() {
   };
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: 'linear-gradient(135deg, var(--light-blue) 0%, var(--light-teal) 100%)', 
-      padding: '2rem' 
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, var(--light-blue) 0%, var(--light-teal) 100%)',
+      padding: '2rem'
     }}>
       <div style={{ maxWidth: '700px', margin: '0 auto' }}>
         {/* Header */}
@@ -135,17 +187,17 @@ export default function CreateShop() {
             <div className="flex justify-between items-center">
               <div>
                 <h1 style={{ color: 'var(--primary-blue)', marginBottom: '0.5rem' }}>
-                  🏪 Create New Shop
+                  Create New Shop
                 </h1>
                 <p style={{ color: 'var(--gray-600)', margin: '0' }}>
                   Set up your shop and start managing queues
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => navigate("/")}
                 className="btn btn-ghost"
               >
-                ← Back to Dashboard
+                Back to Dashboard
               </button>
             </div>
           </div>
@@ -156,7 +208,7 @@ export default function CreateShop() {
           <div className="card mb-6 fade-in" style={{ borderLeft: '4px solid var(--error)' }}>
             <div className="card-body" style={{ background: '#fef2f2', color: 'var(--error)' }}>
               <div className="flex items-center gap-2">
-                <span>⚠️</span>
+                <span>&#9888;</span>
                 <span>{error}</span>
               </div>
             </div>
@@ -169,10 +221,10 @@ export default function CreateShop() {
             <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1.5rem' }}>
               {/* Basic Information */}
               <div>
-                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>📋 Basic Information</h3>
-                
+                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>Basic Information</h3>
+
                 <div className="form-group">
-                  <label className="form-label">🏪 Shop Name *</label>
+                  <label className="form-label">Shop Name *</label>
                   <input
                     type="text"
                     name="name"
@@ -186,13 +238,18 @@ export default function CreateShop() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">📍 Address *</label>
+                  <label className="form-label">
+                    Address *
+                    <span style={{ fontSize: '0.875rem', color: 'var(--gray-500)', marginLeft: '0.5rem', fontWeight: 'normal' }}>
+                      (Auto-filled from location, editable)
+                    </span>
+                  </label>
                   <textarea
                     name="address"
                     className="form-input"
                     value={formData.address}
                     onChange={handleInputChange}
-                    placeholder="Enter your shop address"
+                    placeholder="Enter your shop address or use location detection below"
                     required
                     rows="3"
                     disabled={loading}
@@ -201,7 +258,7 @@ export default function CreateShop() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">🏷️ Category *</label>
+                  <label className="form-label">Category *</label>
                   <select
                     name="category"
                     className="form-input"
@@ -212,30 +269,33 @@ export default function CreateShop() {
                   >
                     <option value="">Select a category</option>
                     {categories.map(cat => (
-                      <option key={cat} value={cat}>
-                        {cat === 'Restaurant' && '🍽️ '}
-                        {cat === 'Retail' && '🛍️ '}
-                        {cat === 'Services' && '🔧 '}
-                        {cat === 'Electronics' && '📱 '}
-                        {cat === 'Grocery' && '🛒 '}
-                        {cat === 'Fashion' && '👗 '}
-                        {cat === 'Healthcare' && '🏥 '}
-                        {cat === 'Beauty' && '💄 '}
-                        {cat === 'Automotive' && '🚗 '}
-                        {cat === 'Other' && '📦 '}
-                        {cat}
-                      </option>
+                      <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
+              {/* Location Section - NEW! */}
+              <div>
+                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>Location</h3>
+                <LocationPicker
+                  onLocationChange={handleLocationChange}
+                  onAddressChange={handleAddressChange}
+                />
+              </div>
+
+              {/* Images Section - NEW! */}
+              <div>
+                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>Shop Images</h3>
+                <ImageUpload onImagesSelected={handleImagesSelected} maxImages={10} />
+              </div>
+
               {/* Custom ID Section */}
               <div>
-                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>🎯 Shop Identification</h3>
-                
+                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>Shop Identification</h3>
+
                 <div className="form-group">
-                  <label className="form-label">🏷️ Custom ID (Optional)</label>
+                  <label className="form-label">Custom ID (Optional)</label>
                   <input
                     type="text"
                     name="customId"
@@ -254,7 +314,7 @@ export default function CreateShop() {
                       </div>
                     )}
                     {customIdStatus && (
-                      <small style={{ 
+                      <small style={{
                         color: customIdStatus.includes('✅') ? 'var(--success)' : 'var(--error)',
                         fontWeight: '500'
                       }}>
@@ -262,28 +322,26 @@ export default function CreateShop() {
                       </small>
                     )}
                   </div>
-                  <small style={{ 
-                    display: 'block', 
-                    color: 'var(--gray-500)', 
+                  <small style={{
+                    display: 'block',
+                    color: 'var(--gray-500)',
                     marginTop: '0.5rem',
                     padding: '0.75rem',
                     background: 'var(--gray-50)',
                     borderRadius: 'var(--radius-sm)',
                     fontSize: '0.8rem'
                   }}>
-                    💡 Custom ID allows easy sharing (like Instagram usernames). 
-                    Use 3-20 characters with letters, numbers, and underscores only. 
-                    If not provided, you'll get an auto-generated shop code.
+                    Custom ID allows easy sharing. Use 3-20 characters with letters, numbers, and underscores only.
                   </small>
                 </div>
               </div>
 
               {/* Additional Details */}
               <div>
-                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>📝 Additional Details</h3>
-                
+                <h3 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>Additional Details</h3>
+
                 <div className="form-group">
-                  <label className="form-label">📄 Description</label>
+                  <label className="form-label">Description</label>
                   <textarea
                     name="description"
                     className="form-input"
@@ -302,7 +360,7 @@ export default function CreateShop() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
                   <div className="form-group">
-                    <label className="form-label">📞 Phone</label>
+                    <label className="form-label">Phone</label>
                     <input
                       type="tel"
                       name="phone"
@@ -315,7 +373,7 @@ export default function CreateShop() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">📧 Email</label>
+                    <label className="form-label">Email</label>
                     <input
                       type="email"
                       name="email"
@@ -331,17 +389,17 @@ export default function CreateShop() {
 
               {/* Action Buttons */}
               <div className="flex gap-4 justify-end" style={{ marginTop: '2rem' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => navigate("/")}
                   className="btn btn-ghost"
                   disabled={loading}
                 >
-                  ❌ Cancel
+                  Cancel
                 </button>
-                
-                <button 
-                  type="submit" 
+
+                <button
+                  type="submit"
                   disabled={loading}
                   className="btn btn-primary"
                   style={{ fontSize: '1rem', padding: '0.75rem 2rem' }}
@@ -352,10 +410,7 @@ export default function CreateShop() {
                       <span>Creating Shop...</span>
                     </div>
                   ) : (
-                    <>
-                      <span>🚀</span>
-                      <span>Create Shop</span>
-                    </>
+                    <span>Create Shop</span>
                   )}
                 </button>
               </div>

@@ -12,14 +12,6 @@ const useSocket = (serverUrl = 'http://localhost:5000') => {
 
     const socket = socketRef.current;
 
-    socket.on('connect', () => {
-      console.log('Connected to server:', socket.id);
-    });
-
-    socket.on('disconnect', () => {
-      console.log('Disconnected from server');
-    });
-
     socket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
     });

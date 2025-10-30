@@ -20,8 +20,7 @@ export default function QueueDashboard() {
     joinRoom(roomId);
     
     // Listen for queue updates
-    onQueueUpdate((data) => {
-      console.log('Queue update received:', data);
+    onQueueUpdate(() => {
       fetchRoomAndQueue(); // Refresh data when updates occur
     });
 

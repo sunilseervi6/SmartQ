@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import QRScanner from "../components/QRScanner";
+import useSocket from "../hooks/useSocket";
 
 export default function QuickJoin() {
   const navigate = useNavigate();
+  const { joinRoom, leaveRoom, onQueueUpdate, offQueueUpdate } = useSocket();
   const [searchParams] = useSearchParams();
   const roomCodeFromURL = searchParams.get("room");
 
@@ -12,7 +14,6 @@ export default function QuickJoin() {
   const [room, setRoom] = useState(null);
   const [queue, setQueue] = useState([]);
   const [customerName, setCustomerName] = useState("");
-  const [priority, setPriority] = useState("normal");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -33,6 +34,26 @@ export default function QuickJoin() {
       handleSearchRoom({ preventDefault: () => {} });
     }
   }, [roomCodeFromURL, autoSearched]);
+
+  // Socket.IO real-time updates
+  useEffect(() => {
+    if (room && room.id) {
+      // Join socket room for real-time updates
+      joinRoom(room.id);
+
+      // Listen for queue updates
+      onQueueUpdate(() => {
+        // Refresh queue data
+        handleSearchRoom({ preventDefault: () => {} });
+      });
+
+      // Cleanup on unmount or room change
+      return () => {
+        leaveRoom(room.id);
+        offQueueUpdate();
+      };
+    }
+  }, [room]);
 
   const handleSearchRoom = async (e) => {
     e.preventDefault();
@@ -76,8 +97,7 @@ export default function QuickJoin() {
       localStorage.setItem("customerName", customerName);
 
       const response = await api.post(`/queue/join/${room.id}`, {
-        customerName: customerName.trim(),
-        priority
+        customerName: customerName.trim()
       });
 
       if (response.data.success) {
@@ -223,21 +243,149 @@ export default function QuickJoin() {
           </div>
         </div>
 
-        {/* Room Info */}
+        {/* Room & Shop Info */}
         {room && (
           <div className="card mb-6 fade-in">
             <div className="card-header" style={{ background: 'linear-gradient(135deg, var(--light-blue), var(--light-teal))' }}>
               <h2 style={{ color: 'var(--primary-blue)', margin: '0' }}>{room.name}</h2>
+              {room.shop && (
+                <p style={{ color: 'var(--gray-600)', margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
+                  at {room.shop.name}
+                </p>
+              )}
             </div>
             <div className="card-body">
+              {/* Shop Images Gallery */}
+              {room.shop && room.shop.images && room.shop.images.length > 0 && (
+                <div style={{ marginBottom: '2rem' }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: room.shop.images.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '1rem',
+                    maxHeight: room.shop.images.length === 1 ? '400px' : '250px'
+                  }}>
+                    {room.shop.images
+                      .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0))
+                      .slice(0, 4)
+                      .map((image, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            position: 'relative',
+                            borderRadius: 'var(--radius-md)',
+                            overflow: 'hidden',
+                            border: '2px solid var(--gray-200)',
+                            height: room.shop.images.length === 1 ? '400px' : '200px'
+                          }}
+                        >
+                          <img
+                            src={image.url}
+                            alt={`${room.shop.name} - Image ${index + 1}`}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                          {image.isPrimary && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '0.5rem',
+                                left: '0.5rem',
+                                background: 'var(--primary-teal)',
+                                color: 'white',
+                                padding: '0.25rem 0.75rem',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '0.75rem',
+                                fontWeight: '600'
+                              }}
+                            >
+                              Primary
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                  {room.shop.images.length > 4 && (
+                    <p style={{
+                      textAlign: 'center',
+                      color: 'var(--gray-500)',
+                      fontSize: '0.875rem',
+                      marginTop: '0.5rem'
+                    }}>
+                      +{room.shop.images.length - 4} more images
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Shop Information */}
+              {room.shop && (
+                <div style={{
+                  padding: '1.5rem',
+                  background: 'var(--gray-50)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: '1.5rem'
+                }}>
+                  <h4 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>Shop Information</h4>
+                  <div style={{ display: 'grid', gap: '0.75rem' }}>
+                    {room.shop.address && (
+                      <div className="flex items-start gap-2">
+                        <span style={{ fontSize: '1.25rem' }}>📍</span>
+                        <div>
+                          <strong style={{ color: 'var(--gray-700)' }}>Address:</strong>
+                          <p style={{ margin: '0.25rem 0 0 0', color: 'var(--gray-600)' }}>
+                            {room.shop.address}
+                          </p>
+                          {(room.shop.city || room.shop.state) && (
+                            <p style={{ margin: '0.25rem 0 0 0', color: 'var(--gray-500)', fontSize: '0.875rem' }}>
+                              {[room.shop.city, room.shop.state, room.shop.country].filter(Boolean).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {room.shop.category && (
+                      <div className="flex items-center gap-2">
+                        <span>🏷️</span>
+                        <span><strong>Category:</strong> {room.shop.category}</span>
+                      </div>
+                    )}
+                    {room.shop.phone && (
+                      <div className="flex items-center gap-2">
+                        <span>📞</span>
+                        <span><strong>Phone:</strong> {room.shop.phone}</span>
+                      </div>
+                    )}
+                    {room.shop.email && (
+                      <div className="flex items-center gap-2">
+                        <span>📧</span>
+                        <span><strong>Email:</strong> {room.shop.email}</span>
+                      </div>
+                    )}
+                    {room.shop.description && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <p style={{ color: 'var(--gray-600)', fontStyle: 'italic', margin: '0' }}>
+                          💬 {room.shop.description}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Room Details */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
                 <div>
                   <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>Room Details</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div className="flex items-center gap-2">
+                      <span>🏢</span>
                       <span><strong>Type:</strong> {room.roomType}</span>
                     </div>
                     <div className="flex items-center gap-2">
+                      <span>🕒</span>
                       <span><strong>Hours:</strong> {room.operatingHours ? `${room.operatingHours.start} - ${room.operatingHours.end}` : 'Not specified'}</span>
                     </div>
                   </div>
@@ -246,9 +394,11 @@ export default function QuickJoin() {
                   <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>Queue Status</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div className="flex items-center gap-2">
+                      <span>👥</span>
                       <span><strong>Capacity:</strong> {room.currentCount} / {room.maxCapacity}</span>
                     </div>
                     <div className="flex items-center gap-2">
+                      <span>🏷️</span>
                       <span><strong>Code:</strong> <code style={{ background: 'var(--gray-100)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>{room.roomCode}</code></span>
                     </div>
                   </div>
@@ -257,7 +407,7 @@ export default function QuickJoin() {
               {room.description && (
                 <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)' }}>
                   <p style={{ color: 'var(--gray-600)', fontStyle: 'italic', margin: '0' }}>
-                    {room.description}
+                    💬 {room.description}
                   </p>
                 </div>
               )}
@@ -349,20 +499,6 @@ export default function QuickJoin() {
                     required
                     disabled={loading}
                   />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Priority Level</label>
-                  <select
-                    className="form-input"
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    disabled={loading}
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="vip">VIP</option>
-                  </select>
                 </div>
 
                 <button

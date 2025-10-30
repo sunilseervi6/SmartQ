@@ -3,6 +3,8 @@ import Shop from "../models/Shop.js";
 import Queue from "../models/Queue.js";
 import User from "../models/User.js";
 import { generateQRCodeDataURL, generateRoomJoinURL } from "../services/qrCodeService.js";
+import { isValidCoordinates } from "../services/geocodingService.js";
+import mongoose from "mongoose";
 
 // Create a new room
 export const createRoom = async (req, res) => {
@@ -234,8 +236,8 @@ export const deleteRoom = async (req, res) => {
 
     // Validate password is provided
     if (!password) {
-      return res.status(400).json({ 
-        message: "Password is required to delete the room" 
+      return res.status(400).json({
+        message: "Password is required to delete the room"
       });
     }
 
@@ -247,8 +249,8 @@ export const deleteRoom = async (req, res) => {
 
     const isPasswordValid = await user.matchPassword(password);
     if (!isPasswordValid) {
-      return res.status(401).json({ 
-        message: "Incorrect password. Room deletion failed." 
+      return res.status(401).json({
+        message: "Incorrect password. Room deletion failed."
       });
     }
 
@@ -265,7 +267,13 @@ export const deleteRoom = async (req, res) => {
     // Hard delete - remove from database completely
     // First, delete all queues associated with this room
     await Queue.deleteMany({ roomId: roomId });
-    
+
+    // Remove room from all users' favorites
+    await User.updateMany(
+      { 'favorites.itemId': roomId, 'favorites.itemType': 'room' },
+      { $pull: { favorites: { itemId: roomId, itemType: 'room' } } }
+    );
+
     // Then delete the room itself
     await Room.findByIdAndDelete(roomId);
 
@@ -275,6 +283,198 @@ export const deleteRoom = async (req, res) => {
     });
   } catch (err) {
     console.error("Delete room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Browse rooms (public - with location-based filtering)
+export const browseRooms = async (req, res) => {
+  try {
+    const { lat, lng, radius = 5, category, search, limit = 50 } = req.query;
+
+    let rooms;
+    let shopIds = [];
+
+    // If coordinates provided, find nearby shops first
+    if (lat && lng) {
+      const latitude = parseFloat(lat);
+      const longitude = parseFloat(lng);
+
+      if (!isValidCoordinates(latitude, longitude)) {
+        return res.status(400).json({ message: "Invalid coordinates" });
+      }
+
+      // Build shop query for nearby search
+      const shopQuery = {
+        isActive: true,
+        location: {
+          $near: {
+            $geometry: {
+              type: 'Point',
+              coordinates: [longitude, latitude]
+            },
+            $maxDistance: parseFloat(radius) * 1000 // Convert km to meters
+          }
+        }
+      };
+
+      // Add category filter if provided
+      if (category && category !== 'all') {
+        shopQuery.category = category;
+      }
+
+      // Add text search if provided
+      if (search && search.trim()) {
+        shopQuery.$or = [
+          { name: { $regex: search.trim(), $options: 'i' } },
+          { address: { $regex: search.trim(), $options: 'i' } }
+        ];
+      }
+
+      // Find nearby shops
+      const nearbyShops = await Shop.find(shopQuery)
+        .limit(parseInt(limit))
+        .select('_id name address category location city state country images description phone email');
+
+      shopIds = nearbyShops.map(shop => shop._id);
+
+      // Find active rooms for these shops
+      rooms = await Room.find({
+        shopId: { $in: shopIds },
+        isActive: true
+      }).populate('shopId');
+
+      // Calculate distance for each room/shop and add queue count
+      const roomsWithDetails = await Promise.all(rooms.map(async (room) => {
+        const shop = room.shopId;
+
+        // Calculate distance
+        let distance = null;
+        if (shop.location && shop.location.coordinates) {
+          const [shopLng, shopLat] = shop.location.coordinates;
+          const R = 6371; // Earth's radius in km
+          const dLat = (shopLat - latitude) * Math.PI / 180;
+          const dLon = (shopLng - longitude) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                   Math.cos(latitude * Math.PI / 180) * Math.cos(shopLat * Math.PI / 180) *
+                   Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          distance = parseFloat((R * c).toFixed(2));
+        }
+
+        // Get current queue count
+        const queueCount = await Queue.countDocuments({
+          roomId: room._id,
+          status: { $in: ['waiting', 'in_progress'] }
+        });
+
+        return {
+          id: room._id,
+          name: room.name,
+          roomCode: room.roomCode,
+          roomType: room.roomType,
+          description: room.description,
+          maxCapacity: room.maxCapacity,
+          operatingHours: room.operatingHours,
+          currentQueueCount: queueCount,
+          shop: {
+            id: shop._id,
+            name: shop.name,
+            address: shop.address,
+            category: shop.category,
+            city: shop.city,
+            state: shop.state,
+            country: shop.country,
+            description: shop.description,
+            phone: shop.phone,
+            email: shop.email,
+            images: shop.images || [],
+            location: shop.location
+          },
+          distance
+        };
+      }));
+
+      // Sort by distance (nearest first)
+      roomsWithDetails.sort((a, b) => {
+        if (a.distance === null) return 1;
+        if (b.distance === null) return -1;
+        return a.distance - b.distance;
+      });
+
+      return res.json({
+        success: true,
+        count: roomsWithDetails.length,
+        rooms: roomsWithDetails
+      });
+    }
+
+    // If no coordinates, return all active rooms (with optional filters)
+    const roomQuery = { isActive: true };
+    const shopQuery = { isActive: true };
+
+    if (category && category !== 'all') {
+      shopQuery.category = category;
+    }
+
+    if (search && search.trim()) {
+      shopQuery.$or = [
+        { name: { $regex: search.trim(), $options: 'i' } },
+        { address: { $regex: search.trim(), $options: 'i' } }
+      ];
+    }
+
+    const shops = await Shop.find(shopQuery).select('_id');
+    shopIds = shops.map(shop => shop._id);
+
+    rooms = await Room.find({
+      ...roomQuery,
+      shopId: { $in: shopIds }
+    })
+      .populate('shopId')
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    const roomsWithQueueCount = await Promise.all(rooms.map(async (room) => {
+      const queueCount = await Queue.countDocuments({
+        roomId: room._id,
+        status: { $in: ['waiting', 'in_progress'] }
+      });
+
+      return {
+        id: room._id,
+        name: room.name,
+        roomCode: room.roomCode,
+        roomType: room.roomType,
+        description: room.description,
+        maxCapacity: room.maxCapacity,
+        operatingHours: room.operatingHours,
+        currentQueueCount: queueCount,
+        shop: {
+          id: room.shopId._id,
+          name: room.shopId.name,
+          address: room.shopId.address,
+          category: room.shopId.category,
+          city: room.shopId.city,
+          state: room.shopId.state,
+          country: room.shopId.country,
+          description: room.shopId.description,
+          phone: room.shopId.phone,
+          email: room.shopId.email,
+          images: room.shopId.images || [],
+          location: room.shopId.location
+        },
+        distance: null
+      };
+    }));
+
+    res.json({
+      success: true,
+      count: roomsWithQueueCount.length,
+      rooms: roomsWithQueueCount
+    });
+  } catch (err) {
+    console.error("Browse rooms error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };

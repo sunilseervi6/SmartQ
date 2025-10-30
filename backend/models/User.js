@@ -5,7 +5,24 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['customer','owner'], default: 'customer' }
+  role: { type: String, enum: ['customer','owner'], default: 'customer' },
+
+  // Favorites
+  favorites: [{
+    itemType: { type: String, enum: ['shop', 'room'], required: true },
+    itemId: { type: mongoose.Schema.Types.ObjectId, required: true, refPath: 'favorites.itemModel' },
+    itemModel: { type: String, enum: ['Shop', 'Room'], required: true },
+    addedAt: { type: Date, default: Date.now }
+  }],
+
+  // Notification Preferences
+  notificationPreferences: {
+    queueJoined: { type: Boolean, default: true },
+    positionChange: { type: Boolean, default: true },
+    nextInLine: { type: Boolean, default: true },
+    yourTurn: { type: Boolean, default: true },
+    queueCompleted: { type: Boolean, default: true }
+  }
 });
 
 // hash password before saving
