@@ -35,7 +35,7 @@ desktop.ini
 *.swo
 *~
 
- .claude/
+.claude/
 
 # Temporary files
 *.tmp
