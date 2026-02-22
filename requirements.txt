@@ -1,0 +1,8 @@
+livekit-agents>=0.12
+livekit-plugins-groq
+livekit-plugins-cartesia
+livekit-plugins-assemblyai
+livekit-plugins-silero
+livekit-plugins-noise-cancellation
+python-dotenv
+httpx

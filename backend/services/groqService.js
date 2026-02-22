@@ -178,21 +178,17 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "browse_rooms",
-      description: "Browse and search available rooms/queues. Can filter by category, search term, or location. Useful when users want to find queues to join.",
+      description: "Browse and search available rooms/queues. Can filter by category or search term. Useful when users want to find queues to join. Only include parameters that are actually specified by the user.",
       parameters: {
         type: "object",
         properties: {
           search: {
             type: "string",
-            description: "Search term to filter rooms by name or description",
+            description: "Search term to filter rooms by name or description. Only include if the user specified a search term.",
           },
           category: {
             type: "string",
-            description: "Shop category to filter by (Restaurant, Retail, Services, Electronics, Grocery, Fashion, Healthcare, Beauty, Automotive, Other)",
-          },
-          limit: {
-            type: "number",
-            description: "Maximum number of results to return (default 10)",
+            description: "Shop category to filter by (Restaurant, Retail, Services, Electronics, Grocery, Fashion, Healthcare, Beauty, Automotive, Other). Only include if the user specified a category.",
           },
         },
         required: [],

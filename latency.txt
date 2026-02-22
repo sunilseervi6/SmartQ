@@ -1,0 +1,4 @@
+[2026-02-22 15:29:16] Response latency: 1332ms
+[2026-02-22 15:32:58] Response latency: 615ms
+[2026-02-22 15:33:12] Response latency: 611ms
+[2026-02-22 15:33:35] Response latency: 587ms

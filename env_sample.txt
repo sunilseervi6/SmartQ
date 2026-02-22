@@ -1,0 +1,3 @@
+LIVEKIT_API_KEY="APIdsASWdUYXgzg"
+LIVEKIT_API_SECRET="5on1n5HyrW9Ll45QFmKvctwCMaKfJ8gYfQfvbEnfn8GD"
+LIVEKIT_URL="wss://internproject-i4npspki.livekit.cloud"
