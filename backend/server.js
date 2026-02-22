@@ -11,6 +11,7 @@ import queueRoutes from "./routes/queueRoutes.js";
 import geocodingRoutes from "./routes/geocodingRoutes.js";
 import favoriteRoutes from "./routes/favoriteRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -67,6 +68,7 @@ app.use("/api/queue", queueRoutes);
 app.use("/api/geocoding", geocodingRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/chat", chatRoutes);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
