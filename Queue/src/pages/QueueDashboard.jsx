@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import useSocket from "../hooks/useSocket";
@@ -13,24 +13,7 @@ export default function QueueDashboard() {
   const [currentCustomer, setCurrentCustomer] = useState(null);
   const { joinRoom, leaveRoom, onQueueUpdate, offQueueUpdate } = useSocket();
 
-  useEffect(() => {
-    fetchRoomAndQueue();
-    
-    // Join socket room for real-time updates
-    joinRoom(roomId);
-    
-    // Listen for queue updates
-    onQueueUpdate(() => {
-      fetchRoomAndQueue(); // Refresh data when updates occur
-    });
-
-    return () => {
-      leaveRoom(roomId);
-      offQueueUpdate();
-    };
-  }, [roomId]);
-
-  const fetchRoomAndQueue = async () => {
+  const fetchRoomAndQueue = useCallback(async () => {
     try {
       const response = await api.get(`/queue/room/${roomId}`);
       if (response.data.success) {
@@ -42,7 +25,24 @@ export default function QueueDashboard() {
       setError("Failed to load queue data");
     }
     setLoading(false);
-  };
+  }, [roomId]);
+
+  useEffect(() => {
+    fetchRoomAndQueue();
+
+    // Join socket room for real-time updates
+    joinRoom(roomId);
+
+    // Listen for queue updates
+    onQueueUpdate(() => {
+      fetchRoomAndQueue();
+    });
+
+    return () => {
+      leaveRoom(roomId);
+      offQueueUpdate();
+    };
+  }, [roomId, joinRoom, leaveRoom, onQueueUpdate, offQueueUpdate, fetchRoomAndQueue]);
 
   const handleCallNext = async () => {
     try {
@@ -66,7 +66,7 @@ export default function QueueDashboard() {
         `;
         document.body.appendChild(notification);
         setTimeout(() => notification.remove(), 5000);
-        
+
         fetchRoomAndQueue();
       }
     } catch (err) {
@@ -125,7 +125,7 @@ export default function QueueDashboard() {
             <div className="flex justify-between items-center">
               <div>
                 <h1 style={{ color: 'var(--primary-blue)', marginBottom: '0.5rem' }}>
-                  🎯 Queue Dashboard
+                  Queue Dashboard
                 </h1>
                 {room && (
                   <div style={{ color: 'var(--gray-600)' }}>
@@ -134,20 +134,20 @@ export default function QueueDashboard() {
                     </p>
                     <div className="flex gap-4 items-center">
                       <span className="status-badge status-waiting">
-                        👥 {room.currentCount} / {room.maxCapacity} Capacity
+                        {room.currentCount} / {room.maxCapacity} Capacity
                       </span>
                       <span style={{ fontSize: '0.9rem', color: 'var(--gray-500)' }}>
-                        📊 {waitingCustomers.length} Waiting
+                        {waitingCustomers.length} Waiting
                       </span>
                     </div>
                   </div>
                 )}
               </div>
-              <button 
+              <button
                 onClick={() => navigate(-1)}
                 className="btn btn-ghost"
               >
-                ← Back
+                Back
               </button>
             </div>
           </div>
@@ -157,7 +157,7 @@ export default function QueueDashboard() {
           <div className="card mb-6 fade-in" style={{ borderLeft: '4px solid var(--error)' }}>
             <div className="card-body" style={{ background: '#fef2f2', color: 'var(--error)' }}>
               <div className="flex items-center gap-2">
-                <span>⚠️</span>
+                <span>&#9888;</span>
                 <span>{error}</span>
               </div>
             </div>
@@ -167,27 +167,27 @@ export default function QueueDashboard() {
         {/* Current Customer Section */}
         <div className="card mb-8 fade-in">
           <div className="card-header">
-            <h2 style={{ color: 'var(--primary-teal)' }}>🔥 Currently Serving</h2>
+            <h2 style={{ color: 'var(--primary-teal)' }}>Currently Serving</h2>
           </div>
           <div className="card-body">
             {currentCustomer ? (
-              <div style={{ 
-                background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)', 
-                borderRadius: 'var(--radius-lg)', 
+              <div style={{
+                background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
+                borderRadius: 'var(--radius-lg)',
                 padding: '2rem',
                 border: '2px solid var(--success)'
               }}>
                 <div className="flex justify-between items-center">
                   <div>
                     <div className="flex items-center gap-3 mb-3">
-                      <div style={{ 
-                        background: 'var(--success)', 
-                        color: 'white', 
-                        borderRadius: '50%', 
-                        width: '60px', 
-                        height: '60px', 
-                        display: 'flex', 
-                        alignItems: 'center', 
+                      <div style={{
+                        background: 'var(--success)',
+                        color: 'white',
+                        borderRadius: '50%',
+                        width: '60px',
+                        height: '60px',
+                        display: 'flex',
+                        alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '1.5rem',
                         fontWeight: 'bold'
@@ -199,49 +199,48 @@ export default function QueueDashboard() {
                           {currentCustomer.customerName}
                         </h3>
                         <p style={{ color: 'var(--gray-600)', fontSize: '0.9rem' }}>
-                          ⏰ Called at {new Date(currentCustomer.calledAt || Date.now()).toLocaleTimeString()}
+                          Called at {new Date(currentCustomer.calledAt || Date.now()).toLocaleTimeString()}
                         </p>
                       </div>
                     </div>
                     {currentCustomer.priority !== 'normal' && (
                       <span className={`status-badge ${currentCustomer.priority === 'urgent' ? 'status-urgent' : 'status-vip'}`}>
-                        {currentCustomer.priority === 'urgent' ? '🚨 URGENT' : '⭐ VIP'}
+                        {currentCustomer.priority === 'urgent' ? 'URGENT' : 'VIP'}
                       </span>
                     )}
                   </div>
                   <div className="flex gap-3">
-                    <button 
+                    <button
                       onClick={() => handleCompleteService(currentCustomer.id)}
                       className="btn btn-success"
                     >
-                      ✅ Complete Service
+                      Complete Service
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleMarkNoShow(currentCustomer.id)}
                       className="btn btn-danger"
                     >
-                      ❌ No Show
+                      No Show
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div style={{ 
-                background: 'var(--gray-100)', 
-                borderRadius: 'var(--radius-lg)', 
+              <div style={{
+                background: 'var(--gray-100)',
+                borderRadius: 'var(--radius-lg)',
                 padding: '3rem',
                 textAlign: 'center',
                 border: '2px dashed var(--gray-300)'
               }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎪</div>
                 <h3 style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>No customer currently being served</h3>
                 {waitingCustomers.length > 0 && (
-                  <button 
+                  <button
                     onClick={handleCallNext}
                     className="btn btn-primary"
                     style={{ fontSize: '1.1rem', padding: '1rem 2rem' }}
                   >
-                    📢 Call Next Customer
+                    Call Next Customer
                   </button>
                 )}
               </div>
@@ -251,19 +250,19 @@ export default function QueueDashboard() {
 
         {/* Queue Controls */}
         <div className="flex gap-4 mb-8">
-          <button 
+          <button
             onClick={handleCallNext}
             disabled={waitingCustomers.length === 0}
             className={`btn ${waitingCustomers.length > 0 ? 'btn-primary' : 'btn-ghost'}`}
           >
-            📢 Call Next ({waitingCustomers.length})
+            Call Next ({waitingCustomers.length})
           </button>
-          <button 
+          <button
             onClick={handleClearQueue}
             disabled={queue.length === 0}
             className={`btn ${queue.length > 0 ? 'btn-danger' : 'btn-ghost'}`}
           >
-            🗑️ Clear Queue
+            Clear Queue
           </button>
         </div>
 
@@ -271,27 +270,26 @@ export default function QueueDashboard() {
         <div className="card fade-in">
           <div className="card-header">
             <h2 style={{ color: 'var(--primary-blue)' }}>
-              ⏳ Waiting Queue ({waitingCustomers.length})
+              Waiting Queue ({waitingCustomers.length})
             </h2>
           </div>
           <div className="card-body">
             {waitingCustomers.length === 0 ? (
-              <div style={{ 
-                textAlign: 'center', 
+              <div style={{
+                textAlign: 'center',
                 padding: '3rem',
                 color: 'var(--gray-500)'
               }}>
-                <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎭</div>
                 <h3>No customers waiting</h3>
                 <p>The queue is empty. New customers can join anytime!</p>
               </div>
             ) : (
               <div style={{ display: 'grid', gap: '1rem' }}>
                 {waitingCustomers.map((customer, index) => (
-                  <div 
+                  <div
                     key={customer.id}
                     className="card slide-in"
-                    style={{ 
+                    style={{
                       background: index === 0 ? 'linear-gradient(135deg, var(--light-blue), var(--light-teal))' : 'var(--white)',
                       border: index === 0 ? '2px solid var(--primary-blue)' : '1px solid var(--gray-200)',
                       transform: index === 0 ? 'scale(1.02)' : 'scale(1)'
@@ -300,14 +298,14 @@ export default function QueueDashboard() {
                     <div className="card-body">
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-4">
-                          <div style={{ 
-                            background: index === 0 ? 'var(--primary-blue)' : 'var(--primary-teal)', 
-                            color: 'white', 
-                            borderRadius: '50%', 
-                            width: '50px', 
-                            height: '50px', 
-                            display: 'flex', 
-                            alignItems: 'center', 
+                          <div style={{
+                            background: index === 0 ? 'var(--primary-blue)' : 'var(--primary-teal)',
+                            color: 'white',
+                            borderRadius: '50%',
+                            width: '50px',
+                            height: '50px',
+                            display: 'flex',
+                            alignItems: 'center',
                             justifyContent: 'center',
                             fontWeight: 'bold',
                             fontSize: '1.2rem'
@@ -321,37 +319,37 @@ export default function QueueDashboard() {
                               </h4>
                               {index === 0 && (
                                 <span className="status-badge" style={{ background: 'var(--warning)', color: 'white' }}>
-                                  🔥 NEXT
+                                  NEXT
                                 </span>
                               )}
                             </div>
                             <p style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--gray-900)', marginBottom: '0.5rem' }}>
-                              👤 {customer.customerName}
+                              {customer.customerName}
                             </p>
                             <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--gray-600)' }}>
                               <span>
-                                ⏰ Joined: {new Date(customer.joinedAt).toLocaleTimeString()}
+                                Joined: {new Date(customer.joinedAt).toLocaleTimeString()}
                               </span>
                               {customer.estimatedWaitTime > 0 && (
                                 <span>
-                                  ⌛ Est. wait: {customer.estimatedWaitTime} min
+                                  Est. wait: {customer.estimatedWaitTime} min
                                 </span>
                               )}
                             </div>
                           </div>
                           {customer.priority !== 'normal' && (
                             <span className={`status-badge ${customer.priority === 'urgent' ? 'status-urgent' : 'status-vip'}`}>
-                              {customer.priority === 'urgent' ? '🚨 URGENT' : '⭐ VIP'}
+                              {customer.priority === 'urgent' ? 'URGENT' : 'VIP'}
                             </span>
                           )}
                         </div>
                         <div className="flex gap-2">
                           {index === 0 && (
-                            <button 
+                            <button
                               onClick={handleCallNext}
                               className="btn btn-success"
                             >
-                              📢 Call Now
+                              Call Now
                             </button>
                           )}
                         </div>

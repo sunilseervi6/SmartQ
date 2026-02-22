@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/axios";
 import QRScanner from "../components/QRScanner";
@@ -18,8 +18,36 @@ export default function QuickJoin() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [myQueueStatus, setMyQueueStatus] = useState(null);
-  const [autoSearched, setAutoSearched] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+
+  // Use ref for roomCode so socket callback always has current value
+  const roomCodeRef = useRef(roomCode);
+  roomCodeRef.current = roomCode;
+
+  // Fetch queue data for a given code
+  const fetchQueueData = useCallback(async (code) => {
+    if (!code || !code.trim()) return;
+    try {
+      const response = await api.get(`/queue/room/${code}`);
+      if (response.data.success) {
+        setRoom(response.data.room);
+        setQueue(response.data.queue);
+
+        // Check if current user is already in queue
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        const userId = user.id;
+        const existingQueue = response.data.queue.find(q =>
+          q.customerId === userId &&
+          ['waiting', 'in_progress'].includes(q.status)
+        );
+        setMyQueueStatus(existingQueue || null);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Room not found");
+      setRoom(null);
+      setQueue([]);
+    }
+  }, []);
 
   useEffect(() => {
     // Get customer name from localStorage if available
@@ -28,32 +56,29 @@ export default function QuickJoin() {
       setCustomerName(savedName);
     }
 
-    // Auto-search if room code is in URL and haven't searched yet
-    if (roomCodeFromURL && !autoSearched) {
-      setAutoSearched(true);
-      handleSearchRoom({ preventDefault: () => {} });
+    // Auto-search if room code is in URL
+    if (roomCodeFromURL) {
+      setLoading(true);
+      fetchQueueData(roomCodeFromURL).finally(() => setLoading(false));
     }
-  }, [roomCodeFromURL, autoSearched]);
+  }, [roomCodeFromURL, fetchQueueData]);
 
   // Socket.IO real-time updates
   useEffect(() => {
     if (room && room.id) {
-      // Join socket room for real-time updates
       joinRoom(room.id);
 
-      // Listen for queue updates
       onQueueUpdate(() => {
-        // Refresh queue data
-        handleSearchRoom({ preventDefault: () => {} });
+        // Use ref to get current roomCode (avoids stale closure)
+        fetchQueueData(roomCodeRef.current);
       });
 
-      // Cleanup on unmount or room change
       return () => {
         leaveRoom(room.id);
         offQueueUpdate();
       };
     }
-  }, [room]);
+  }, [room?.id, joinRoom, leaveRoom, onQueueUpdate, offQueueUpdate, fetchQueueData]);
 
   const handleSearchRoom = async (e) => {
     e.preventDefault();
@@ -62,23 +87,9 @@ export default function QuickJoin() {
     setLoading(true);
     setError("");
     try {
-      const response = await api.get(`/queue/room/${roomCode}`);
-      if (response.data.success) {
-        setRoom(response.data.room);
-        setQueue(response.data.queue);
-
-        // Check if current user is already in queue
-        const userId = localStorage.getItem("userId");
-        const existingQueue = response.data.queue.find(q =>
-          q.customerId === userId &&
-          ['waiting', 'in_progress'].includes(q.status)
-        );
-        setMyQueueStatus(existingQueue);
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Room not found");
-      setRoom(null);
-      setQueue([]);
+      await fetchQueueData(roomCode);
+    } catch {
+      // Error already handled inside fetchQueueData
     }
     setLoading(false);
   };
@@ -104,7 +115,7 @@ export default function QuickJoin() {
         setSuccess(`Successfully joined queue! Your queue number is #${response.data.queue.queueNumber}`);
         setMyQueueStatus(response.data.queue);
         // Refresh room data
-        handleSearchRoom({ preventDefault: () => {} });
+        await fetchQueueData(roomCode);
       }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to join queue");
@@ -120,10 +131,21 @@ export default function QuickJoin() {
       setSuccess("Successfully left the queue");
       setMyQueueStatus(null);
       // Refresh room data
-      handleSearchRoom({ preventDefault: () => {} });
+      await fetchQueueData(roomCode);
     } catch (err) {
       setError("Failed to leave queue");
     }
+  };
+
+  const isWithinOperatingHours = () => {
+    if (!room || !room.operatingHours || !room.operatingHours.start || !room.operatingHours.end) {
+      return true;
+    }
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [startH, startM] = room.operatingHours.start.split(':').map(Number);
+    const [endH, endM] = room.operatingHours.end.split(':').map(Number);
+    return currentMinutes >= startH * 60 + startM && currentMinutes < endH * 60 + endM;
   };
 
   const getQueuePosition = () => {
@@ -136,10 +158,11 @@ export default function QuickJoin() {
   const handleScanSuccess = (scannedRoomCode) => {
     setShowScanner(false);
     setRoomCode(scannedRoomCode);
+    roomCodeRef.current = scannedRoomCode;
     // Automatically search for the room
-    setTimeout(() => {
-      handleSearchRoom({ preventDefault: () => {} });
-    }, 100);
+    setLoading(true);
+    setError("");
+    fetchQueueData(scannedRoomCode).finally(() => setLoading(false));
   };
 
   const handleScanClose = () => {
@@ -166,7 +189,7 @@ export default function QuickJoin() {
                 </p>
               </div>
               <button
-                onClick={() => navigate("/dashboard")}
+                onClick={() => navigate("/")}
                 className="btn btn-ghost"
               >
                 Back to Dashboard
@@ -222,7 +245,6 @@ export default function QuickJoin() {
                 className="btn btn-success"
                 disabled={loading}
               >
-                <span>📷</span>
                 <span>Scan QR</span>
               </button>
               <button
@@ -332,7 +354,6 @@ export default function QuickJoin() {
                   <div style={{ display: 'grid', gap: '0.75rem' }}>
                     {room.shop.address && (
                       <div className="flex items-start gap-2">
-                        <span style={{ fontSize: '1.25rem' }}>📍</span>
                         <div>
                           <strong style={{ color: 'var(--gray-700)' }}>Address:</strong>
                           <p style={{ margin: '0.25rem 0 0 0', color: 'var(--gray-600)' }}>
@@ -348,26 +369,23 @@ export default function QuickJoin() {
                     )}
                     {room.shop.category && (
                       <div className="flex items-center gap-2">
-                        <span>🏷️</span>
                         <span><strong>Category:</strong> {room.shop.category}</span>
                       </div>
                     )}
                     {room.shop.phone && (
                       <div className="flex items-center gap-2">
-                        <span>📞</span>
                         <span><strong>Phone:</strong> {room.shop.phone}</span>
                       </div>
                     )}
                     {room.shop.email && (
                       <div className="flex items-center gap-2">
-                        <span>📧</span>
                         <span><strong>Email:</strong> {room.shop.email}</span>
                       </div>
                     )}
                     {room.shop.description && (
                       <div style={{ marginTop: '0.5rem' }}>
                         <p style={{ color: 'var(--gray-600)', fontStyle: 'italic', margin: '0' }}>
-                          💬 {room.shop.description}
+                          {room.shop.description}
                         </p>
                       </div>
                     )}
@@ -381,11 +399,9 @@ export default function QuickJoin() {
                   <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>Room Details</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div className="flex items-center gap-2">
-                      <span>🏢</span>
                       <span><strong>Type:</strong> {room.roomType}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>🕒</span>
                       <span><strong>Hours:</strong> {room.operatingHours ? `${room.operatingHours.start} - ${room.operatingHours.end}` : 'Not specified'}</span>
                     </div>
                   </div>
@@ -394,11 +410,9 @@ export default function QuickJoin() {
                   <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>Queue Status</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div className="flex items-center gap-2">
-                      <span>👥</span>
                       <span><strong>Capacity:</strong> {room.currentCount} / {room.maxCapacity}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>🏷️</span>
                       <span><strong>Code:</strong> <code style={{ background: 'var(--gray-100)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>{room.roomCode}</code></span>
                     </div>
                   </div>
@@ -407,7 +421,7 @@ export default function QuickJoin() {
               {room.description && (
                 <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)' }}>
                   <p style={{ color: 'var(--gray-600)', fontStyle: 'italic', margin: '0' }}>
-                    💬 {room.description}
+                    {room.description}
                   </p>
                 </div>
               )}
@@ -501,13 +515,28 @@ export default function QuickJoin() {
                   />
                 </div>
 
+                {!isWithinOperatingHours() && (
+                  <div style={{
+                    padding: '1rem',
+                    background: '#fef2f2',
+                    border: '1px solid var(--error)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--error)',
+                    textAlign: 'center'
+                  }}>
+                    Queue is currently closed. Operating hours: {room.operatingHours.start} - {room.operatingHours.end}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  disabled={loading || room.currentCount >= room.maxCapacity}
-                  className={`btn ${room.currentCount >= room.maxCapacity ? 'btn-ghost' : 'btn-success'}`}
+                  disabled={loading || room.currentCount >= room.maxCapacity || !isWithinOperatingHours()}
+                  className={`btn ${(room.currentCount >= room.maxCapacity || !isWithinOperatingHours()) ? 'btn-ghost' : 'btn-success'}`}
                   style={{ fontSize: '1.1rem', padding: '1rem 2rem' }}
                 >
-                  {room.currentCount >= room.maxCapacity ? (
+                  {!isWithinOperatingHours() ? (
+                    <span>Queue Closed</span>
+                  ) : room.currentCount >= room.maxCapacity ? (
                     <span>Queue Full</span>
                   ) : loading ? (
                     <div className="flex items-center gap-2">

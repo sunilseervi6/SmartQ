@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import QRScanner from "../components/QRScanner";
@@ -19,6 +19,10 @@ export default function JoinQueue() {
   const [myQueueStatus, setMyQueueStatus] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
 
+  // Use ref for roomCode so socket callback always has current value
+  const roomCodeRef = useRef(roomCode);
+  roomCodeRef.current = roomCode;
+
   useEffect(() => {
     // Get customer name from localStorage if available
     const savedName = localStorage.getItem("customerName");
@@ -27,25 +31,47 @@ export default function JoinQueue() {
     }
   }, []);
 
+  // Fetch queue data for a given code
+  const fetchQueueData = useCallback(async (code) => {
+    if (!code || !code.trim()) return;
+    try {
+      const response = await api.get(`/queue/room/${code}`);
+      if (response.data.success) {
+        setRoom(response.data.room);
+        setQueue(response.data.queue);
+
+        // Check if current user is already in queue
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        const userId = user.id;
+        const existingQueue = response.data.queue.find(q =>
+          q.customerId === userId &&
+          ['waiting', 'in_progress'].includes(q.status)
+        );
+        setMyQueueStatus(existingQueue || null);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Room not found");
+      setRoom(null);
+      setQueue([]);
+    }
+  }, []);
+
   // Socket.IO real-time updates
   useEffect(() => {
     if (room && room.id) {
-      // Join socket room for real-time updates
       joinRoom(room.id);
 
-      // Listen for queue updates
       onQueueUpdate(() => {
-        // Refresh queue data
-        handleSearchRoom({ preventDefault: () => {} });
+        // Use ref to get current roomCode (avoids stale closure)
+        fetchQueueData(roomCodeRef.current);
       });
 
-      // Cleanup on unmount or room change
       return () => {
         leaveRoom(room.id);
         offQueueUpdate();
       };
     }
-  }, [room]);
+  }, [room?.id, joinRoom, leaveRoom, onQueueUpdate, offQueueUpdate, fetchQueueData]);
 
   const handleSearchRoom = async (e) => {
     e.preventDefault();
@@ -54,23 +80,9 @@ export default function JoinQueue() {
     setLoading(true);
     setError("");
     try {
-      const response = await api.get(`/queue/room/${roomCode}`);
-      if (response.data.success) {
-        setRoom(response.data.room);
-        setQueue(response.data.queue);
-        
-        // Check if current user is already in queue
-        const userId = localStorage.getItem("userId");
-        const existingQueue = response.data.queue.find(q => 
-          q.customerId === userId && 
-          ['waiting', 'in_progress'].includes(q.status)
-        );
-        setMyQueueStatus(existingQueue);
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Room not found");
-      setRoom(null);
-      setQueue([]);
+      await fetchQueueData(roomCode);
+    } catch {
+      // Error already handled inside fetchQueueData
     }
     setLoading(false);
   };
@@ -87,16 +99,16 @@ export default function JoinQueue() {
     try {
       // Save customer name for future use
       localStorage.setItem("customerName", customerName);
-      
+
       const response = await api.post(`/queue/join/${room.id}`, {
         customerName: customerName.trim()
       });
-      
+
       if (response.data.success) {
         setSuccess(`Successfully joined queue! Your queue number is #${response.data.queue.queueNumber}`);
         setMyQueueStatus(response.data.queue);
         // Refresh room data
-        handleSearchRoom({ preventDefault: () => {} });
+        await fetchQueueData(roomCode);
       }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to join queue");
@@ -112,10 +124,21 @@ export default function JoinQueue() {
       setSuccess("Successfully left the queue");
       setMyQueueStatus(null);
       // Refresh room data
-      handleSearchRoom({ preventDefault: () => {} });
+      await fetchQueueData(roomCode);
     } catch (err) {
       setError("Failed to leave queue");
     }
+  };
+
+  const isWithinOperatingHours = () => {
+    if (!room || !room.operatingHours || !room.operatingHours.start || !room.operatingHours.end) {
+      return true; // If no hours set, allow joining
+    }
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [startH, startM] = room.operatingHours.start.split(':').map(Number);
+    const [endH, endM] = room.operatingHours.end.split(':').map(Number);
+    return currentMinutes >= startH * 60 + startM && currentMinutes < endH * 60 + endM;
   };
 
   const getQueuePosition = () => {
@@ -128,30 +151,32 @@ export default function JoinQueue() {
   const handleScanSuccess = (scannedRoomCode) => {
     setShowScanner(false);
     setRoomCode(scannedRoomCode);
+    roomCodeRef.current = scannedRoomCode;
     // Automatically search for the room
-    setTimeout(() => {
-      handleSearchRoom({ preventDefault: () => {} });
-    }, 100);
+    setLoading(true);
+    setError("");
+    fetchQueueData(scannedRoomCode).finally(() => setLoading(false));
   };
 
   const handleScanClose = () => {
     setShowScanner(false);
   };
 
-  const handleRoomSelectFromBrowse = (roomCode) => {
-    setRoomCode(roomCode);
+  const handleRoomSelectFromBrowse = (selectedRoomCode) => {
+    setRoomCode(selectedRoomCode);
+    roomCodeRef.current = selectedRoomCode;
     setActiveTab("search");
     // Automatically search for the room
-    setTimeout(() => {
-      handleSearchRoom({ preventDefault: () => {} });
-    }, 100);
+    setLoading(true);
+    setError("");
+    fetchQueueData(selectedRoomCode).finally(() => setLoading(false));
   };
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: 'linear-gradient(135deg, var(--light-blue) 0%, var(--light-teal) 100%)', 
-      padding: '2rem' 
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, var(--light-blue) 0%, var(--light-teal) 100%)',
+      padding: '2rem'
     }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
         {/* Header */}
@@ -160,17 +185,17 @@ export default function JoinQueue() {
             <div className="flex justify-between items-center">
               <div>
                 <h1 style={{ color: 'var(--primary-blue)', marginBottom: '0.5rem' }}>
-                  🎯 Join Queue
+                  Join Queue
                 </h1>
                 <p style={{ color: 'var(--gray-600)', margin: '0' }}>
                   Find and join queues at your favorite shops
                 </p>
               </div>
-              <button 
-                onClick={() => navigate("/dashboard")}
+              <button
+                onClick={() => navigate("/")}
                 className="btn btn-ghost"
               >
-                ← Back to Dashboard
+                Back to Dashboard
               </button>
             </div>
           </div>
@@ -181,7 +206,7 @@ export default function JoinQueue() {
           <div className="card mb-6 fade-in" style={{ borderLeft: '4px solid var(--error)' }}>
             <div className="card-body" style={{ background: '#fef2f2', color: 'var(--error)' }}>
               <div className="flex items-center gap-2">
-                <span>⚠️</span>
+                <span>&#9888;</span>
                 <span>{error}</span>
               </div>
             </div>
@@ -192,7 +217,7 @@ export default function JoinQueue() {
           <div className="card mb-6 fade-in" style={{ borderLeft: '4px solid var(--success)' }}>
             <div className="card-body" style={{ background: '#f0fdf4', color: 'var(--success)' }}>
               <div className="flex items-center gap-2">
-                <span>✅</span>
+                <span>&#10003;</span>
                 <span>{success}</span>
               </div>
             </div>
@@ -222,7 +247,6 @@ export default function JoinQueue() {
                   gap: '0.5rem'
                 }}
               >
-                <span>🔍</span>
                 <span>Search by Code</span>
               </button>
               <button
@@ -244,7 +268,6 @@ export default function JoinQueue() {
                   gap: '0.5rem'
                 }}
               >
-                <span>📍</span>
                 <span>Browse Nearby Rooms</span>
               </button>
             </div>
@@ -257,7 +280,7 @@ export default function JoinQueue() {
             {/* Search Room */}
         <div className="card mb-6 fade-in">
           <div className="card-header">
-            <h2 style={{ color: 'var(--primary-teal)', margin: '0' }}>🔍 Find Room</h2>
+            <h2 style={{ color: 'var(--primary-teal)', margin: '0' }}>Find Room</h2>
           </div>
           <div className="card-body">
             <form onSubmit={handleSearchRoom} className="flex gap-4 items-end">
@@ -278,7 +301,6 @@ export default function JoinQueue() {
                 className="btn btn-success"
                 disabled={loading}
               >
-                <span>📷</span>
                 <span>Scan QR</span>
               </button>
               <button
@@ -292,10 +314,7 @@ export default function JoinQueue() {
                     <span>Searching...</span>
                   </div>
                 ) : (
-                  <>
-                    <span>🔍</span>
-                    <span>Search</span>
-                  </>
+                  <span>Search</span>
                 )}
               </button>
             </form>
@@ -306,7 +325,7 @@ export default function JoinQueue() {
         {room && (
           <div className="card mb-6 fade-in">
             <div className="card-header" style={{ background: 'linear-gradient(135deg, var(--light-blue), var(--light-teal))' }}>
-              <h2 style={{ color: 'var(--primary-blue)', margin: '0' }}>🏪 {room.name}</h2>
+              <h2 style={{ color: 'var(--primary-blue)', margin: '0' }}>{room.name}</h2>
               {room.shop && (
                 <p style={{ color: 'var(--gray-600)', margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
                   at {room.shop.name}
@@ -387,11 +406,10 @@ export default function JoinQueue() {
                   borderRadius: 'var(--radius-md)',
                   marginBottom: '1.5rem'
                 }}>
-                  <h4 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>🏪 Shop Information</h4>
+                  <h4 style={{ color: 'var(--primary-teal)', marginBottom: '1rem' }}>Shop Information</h4>
                   <div style={{ display: 'grid', gap: '0.75rem' }}>
                     {room.shop.address && (
                       <div className="flex items-start gap-2">
-                        <span style={{ fontSize: '1.25rem' }}>📍</span>
                         <div>
                           <strong style={{ color: 'var(--gray-700)' }}>Address:</strong>
                           <p style={{ margin: '0.25rem 0 0 0', color: 'var(--gray-600)' }}>
@@ -407,26 +425,23 @@ export default function JoinQueue() {
                     )}
                     {room.shop.category && (
                       <div className="flex items-center gap-2">
-                        <span>🏷️</span>
                         <span><strong>Category:</strong> {room.shop.category}</span>
                       </div>
                     )}
                     {room.shop.phone && (
                       <div className="flex items-center gap-2">
-                        <span>📞</span>
                         <span><strong>Phone:</strong> {room.shop.phone}</span>
                       </div>
                     )}
                     {room.shop.email && (
                       <div className="flex items-center gap-2">
-                        <span>📧</span>
                         <span><strong>Email:</strong> {room.shop.email}</span>
                       </div>
                     )}
                     {room.shop.description && (
                       <div style={{ marginTop: '0.5rem' }}>
                         <p style={{ color: 'var(--gray-600)', fontStyle: 'italic', margin: '0' }}>
-                          💬 {room.shop.description}
+                          {room.shop.description}
                         </p>
                       </div>
                     )}
@@ -437,27 +452,23 @@ export default function JoinQueue() {
               {/* Room Details */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '2rem' }}>
                 <div>
-                  <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>📋 Room Details</h4>
+                  <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>Room Details</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div className="flex items-center gap-2">
-                      <span>🏢</span>
                       <span><strong>Type:</strong> {room.roomType}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>🕒</span>
                       <span><strong>Hours:</strong> {room.operatingHours ? `${room.operatingHours.start} - ${room.operatingHours.end}` : 'Not specified'}</span>
                     </div>
                   </div>
                 </div>
                 <div>
-                  <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>📊 Queue Status</h4>
+                  <h4 style={{ color: 'var(--gray-700)', marginBottom: '1rem' }}>Queue Status</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <div className="flex items-center gap-2">
-                      <span>👥</span>
                       <span><strong>Capacity:</strong> {room.currentCount} / {room.maxCapacity}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span>🏷️</span>
                       <span><strong>Code:</strong> <code style={{ background: 'var(--gray-100)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>{room.roomCode}</code></span>
                     </div>
                   </div>
@@ -466,7 +477,7 @@ export default function JoinQueue() {
               {room.description && (
                 <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)' }}>
                   <p style={{ color: 'var(--gray-600)', fontStyle: 'italic', margin: '0' }}>
-                    💬 {room.description}
+                    {room.description}
                   </p>
                 </div>
               )}
@@ -477,27 +488,27 @@ export default function JoinQueue() {
         {/* My Queue Status */}
         {myQueueStatus && (
           <div className="card mb-6 fade-in">
-            <div className="card-header" style={{ 
-              background: myQueueStatus.status === 'in_progress' 
-                ? 'linear-gradient(135deg, #d1fae5, #a7f3d0)' 
+            <div className="card-header" style={{
+              background: myQueueStatus.status === 'in_progress'
+                ? 'linear-gradient(135deg, #d1fae5, #a7f3d0)'
                 : 'linear-gradient(135deg, var(--light-blue), var(--light-teal))'
             }}>
               <h2 style={{ color: myQueueStatus.status === 'in_progress' ? 'var(--success)' : 'var(--primary-blue)', margin: '0' }}>
-                {myQueueStatus.status === 'in_progress' ? '🔥 You\'re Being Served!' : '⏳ Your Queue Status'}
+                {myQueueStatus.status === 'in_progress' ? 'You\'re Being Served!' : 'Your Queue Status'}
               </h2>
             </div>
             <div className="card-body">
               <div className="flex justify-between items-center">
                 <div>
                   <div className="flex items-center gap-4 mb-3">
-                    <div style={{ 
-                      background: myQueueStatus.status === 'in_progress' ? 'var(--success)' : 'var(--primary-blue)', 
-                      color: 'white', 
-                      borderRadius: '50%', 
-                      width: '60px', 
-                      height: '60px', 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                    <div style={{
+                      background: myQueueStatus.status === 'in_progress' ? 'var(--success)' : 'var(--primary-blue)',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '60px',
+                      height: '60px',
+                      display: 'flex',
+                      alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '1.5rem',
                       fontWeight: 'bold'
@@ -510,11 +521,11 @@ export default function JoinQueue() {
                       </h3>
                       <div className="flex items-center gap-4">
                         <span className={`status-badge ${myQueueStatus.status === 'in_progress' ? 'status-in-progress' : 'status-waiting'}`}>
-                          {myQueueStatus.status === 'in_progress' ? '🔥 Being Served' : '⏳ Waiting'}
+                          {myQueueStatus.status === 'in_progress' ? 'Being Served' : 'Waiting'}
                         </span>
                         {myQueueStatus.status === 'waiting' && getQueuePosition() && (
                           <span style={{ color: 'var(--gray-600)' }}>
-                            📍 Position {getQueuePosition()} in line
+                            Position {getQueuePosition()} in line
                           </span>
                         )}
                       </div>
@@ -522,16 +533,16 @@ export default function JoinQueue() {
                   </div>
                   {myQueueStatus.estimatedWaitTime > 0 && (
                     <p style={{ color: 'var(--gray-600)', margin: '0' }}>
-                      ⌛ Estimated wait: {myQueueStatus.estimatedWaitTime} minutes
+                      Estimated wait: {myQueueStatus.estimatedWaitTime} minutes
                     </p>
                   )}
                 </div>
                 {myQueueStatus.status === 'waiting' && (
-                  <button 
+                  <button
                     onClick={handleLeaveQueue}
                     className="btn btn-danger"
                   >
-                    🚪 Leave Queue
+                    Leave Queue
                   </button>
                 )}
               </div>
@@ -543,12 +554,12 @@ export default function JoinQueue() {
         {room && !myQueueStatus && (
           <div className="card mb-6 fade-in">
             <div className="card-header">
-              <h2 style={{ color: 'var(--primary-teal)', margin: '0' }}>🎯 Join Queue</h2>
+              <h2 style={{ color: 'var(--primary-teal)', margin: '0' }}>Join Queue</h2>
             </div>
             <div className="card-body">
               <form onSubmit={handleJoinQueue} style={{ display: 'grid', gap: '1.5rem' }}>
                 <div className="form-group">
-                  <label className="form-label">👤 Your Name *</label>
+                  <label className="form-label">Your Name *</label>
                   <input
                     type="text"
                     className="form-input"
@@ -560,27 +571,36 @@ export default function JoinQueue() {
                   />
                 </div>
 
-                <button 
+                {!isWithinOperatingHours() && (
+                  <div style={{
+                    padding: '1rem',
+                    background: '#fef2f2',
+                    border: '1px solid var(--error)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--error)',
+                    textAlign: 'center'
+                  }}>
+                    Queue is currently closed. Operating hours: {room.operatingHours.start} - {room.operatingHours.end}
+                  </div>
+                )}
+
+                <button
                   type="submit"
-                  disabled={loading || room.currentCount >= room.maxCapacity}
-                  className={`btn ${room.currentCount >= room.maxCapacity ? 'btn-ghost' : 'btn-success'}`}
+                  disabled={loading || room.currentCount >= room.maxCapacity || !isWithinOperatingHours()}
+                  className={`btn ${(room.currentCount >= room.maxCapacity || !isWithinOperatingHours()) ? 'btn-ghost' : 'btn-success'}`}
                   style={{ fontSize: '1.1rem', padding: '1rem 2rem' }}
                 >
-                  {room.currentCount >= room.maxCapacity ? (
-                    <>
-                      <span>🚫</span>
-                      <span>Queue Full</span>
-                    </>
+                  {!isWithinOperatingHours() ? (
+                    <span>Queue Closed</span>
+                  ) : room.currentCount >= room.maxCapacity ? (
+                    <span>Queue Full</span>
                   ) : loading ? (
                     <div className="flex items-center gap-2">
                       <div className="spinner" style={{ width: '1rem', height: '1rem', marginRight: '0' }}></div>
                       <span>Joining...</span>
                     </div>
                   ) : (
-                    <>
-                      <span>🎯</span>
-                      <span>Join Queue</span>
-                    </>
+                    <span>Join Queue</span>
                   )}
                 </button>
               </form>
@@ -593,7 +613,7 @@ export default function JoinQueue() {
           <div className="card fade-in">
             <div className="card-header">
               <h2 style={{ color: 'var(--primary-blue)', margin: '0' }}>
-                📋 Current Queue ({queue.filter(q => q.status === 'waiting').length} waiting)
+                Current Queue ({queue.filter(q => q.status === 'waiting').length} waiting)
               </h2>
             </div>
             <div className="card-body">
@@ -602,29 +622,29 @@ export default function JoinQueue() {
                   .filter(q => ['waiting', 'in_progress'].includes(q.status))
                   .sort((a, b) => a.queueNumber - b.queueNumber)
                   .map((customer, index) => (
-                    <div 
+                    <div
                       key={customer.id}
                       className="card slide-in"
-                      style={{ 
-                        background: customer.status === 'in_progress' 
-                          ? 'linear-gradient(135deg, #d1fae5, #a7f3d0)' 
+                      style={{
+                        background: customer.status === 'in_progress'
+                          ? 'linear-gradient(135deg, #d1fae5, #a7f3d0)'
                           : 'var(--white)',
-                        border: customer.status === 'in_progress' 
-                          ? '2px solid var(--success)' 
+                        border: customer.status === 'in_progress'
+                          ? '2px solid var(--success)'
                           : '1px solid var(--gray-200)'
                       }}
                     >
                       <div className="card-body">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-4">
-                            <div style={{ 
-                              background: customer.status === 'in_progress' ? 'var(--success)' : 'var(--primary-teal)', 
-                              color: 'white', 
-                              borderRadius: '50%', 
-                              width: '50px', 
-                              height: '50px', 
-                              display: 'flex', 
-                              alignItems: 'center', 
+                            <div style={{
+                              background: customer.status === 'in_progress' ? 'var(--success)' : 'var(--primary-teal)',
+                              color: 'white',
+                              borderRadius: '50%',
+                              width: '50px',
+                              height: '50px',
+                              display: 'flex',
+                              alignItems: 'center',
                               justifyContent: 'center',
                               fontWeight: 'bold',
                               fontSize: '1.2rem'
@@ -633,17 +653,17 @@ export default function JoinQueue() {
                             </div>
                             <div>
                               <h4 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-                                👤 {customer.customerName}
+                                {customer.customerName}
                               </h4>
                               <div className="flex items-center gap-2">
                                 {customer.status === 'in_progress' && (
                                   <span className="status-badge status-in-progress">
-                                    🔥 Being Served
+                                    Being Served
                                   </span>
                                 )}
                                 {customer.priority !== 'normal' && (
                                   <span className={`status-badge ${customer.priority === 'urgent' ? 'status-urgent' : 'status-vip'}`}>
-                                    {customer.priority === 'urgent' ? '🚨 URGENT' : '⭐ VIP'}
+                                    {customer.priority === 'urgent' ? 'URGENT' : 'VIP'}
                                   </span>
                                 )}
                               </div>
