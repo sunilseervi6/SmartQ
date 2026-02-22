@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { ChatProvider } from "./context/ChatContext";
 import PrivateRoute from "./utils/PrivateRoute";
+import ChatBot from "./components/ChatBot";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -15,8 +17,9 @@ import QuickJoin from "./pages/QuickJoin";
 export default function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
+      <ChatProvider>
+        <Router>
+          <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -71,8 +74,10 @@ export default function App() {
               </PrivateRoute>
             }
           />
-        </Routes>
-      </Router>
+          </Routes>
+          <ChatBot />
+        </Router>
+      </ChatProvider>
     </AuthProvider>
   );
 }
