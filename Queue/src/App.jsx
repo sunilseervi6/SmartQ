@@ -3,6 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ChatProvider } from "./context/ChatContext";
 import PrivateRoute from "./utils/PrivateRoute";
 import ChatBot from "./components/ChatBot";
+import VoiceAgent from "./components/VoiceAgent";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -76,6 +77,7 @@ export default function App() {
           />
           </Routes>
           <ChatBot />
+          <VoiceAgent />
         </Router>
       </ChatProvider>
     </AuthProvider>

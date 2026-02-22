@@ -1,0 +1,274 @@
+/* ── Voice FAB — stacked above the chat FAB ── */
+.voice-fab {
+  position: fixed;
+  /* chat FAB: bottom 2rem (32px) + height 60px + 12px gap = 104px ≈ 6.5rem */
+  bottom: 6.5rem;
+  right: 2rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-teal), var(--primary-blue));
+  color: var(--white);
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.voice-fab:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-xl);
+}
+
+.voice-fab:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.voice-fab--active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  animation: voice-fab-pulse 2s infinite;
+}
+
+.voice-fab--connecting {
+  background: linear-gradient(135deg, var(--warning), #d97706);
+}
+
+.voice-fab svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+@keyframes voice-fab-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50%       { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
+
+/* Spinner for connecting state */
+.voice-fab-spinner {
+  animation: voice-spin 1s linear infinite;
+}
+
+@keyframes voice-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Active call card — bottom-left, floats over all pages ── */
+.voice-card {
+  position: fixed;
+  bottom: 2rem;
+  left: 2rem;
+  width: 260px;
+  background: var(--white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  z-index: 9998;
+  overflow: hidden;
+  animation: voiceSlideIn 0.3s ease-out;
+  border: 1px solid var(--gray-200);
+}
+
+.voice-card--connecting {
+  width: 220px;
+}
+
+.voice-card--minimized {
+  width: 220px;
+}
+
+@keyframes voiceSlideIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Card header */
+.voice-card-header {
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, var(--primary-teal), var(--primary-blue));
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.voice-card-title-area {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.voice-card-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.voice-card-dot--speaking {
+  background: #4ade80;
+  animation: voice-dot-blink 0.8s infinite;
+}
+
+.voice-card-dot--connecting {
+  background: #fbbf24;
+  animation: voice-dot-blink 0.6s infinite;
+}
+
+@keyframes voice-dot-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.voice-card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.voice-card-duration {
+  font-size: 0.75rem;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-card-minimize {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: var(--white);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.voice-card-minimize:hover {
+  background: rgba(255,255,255,0.35);
+}
+
+/* Card body */
+.voice-card-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--gray-50);
+}
+
+/* Waveform */
+.voice-waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 36px;
+}
+
+.voice-waveform-bar {
+  width: 4px;
+  border-radius: 2px;
+  background: var(--gray-300);
+  height: 8px;
+  transition: height 0.15s ease;
+}
+
+.voice-waveform-bar--active {
+  background: linear-gradient(180deg, var(--primary-teal), var(--primary-blue));
+  animation: voice-wave 1.2s ease-in-out infinite;
+}
+
+@keyframes voice-wave {
+  0%, 100% { height: 8px; }
+  50%       { height: 28px; }
+}
+
+/* Stagger the wave bars */
+.voice-waveform-bar--active:nth-child(1) { animation-delay: 0.0s; }
+.voice-waveform-bar--active:nth-child(2) { animation-delay: 0.1s; }
+.voice-waveform-bar--active:nth-child(3) { animation-delay: 0.2s; }
+.voice-waveform-bar--active:nth-child(4) { animation-delay: 0.3s; }
+.voice-waveform-bar--active:nth-child(5) { animation-delay: 0.2s; }
+.voice-waveform-bar--active:nth-child(6) { animation-delay: 0.1s; }
+.voice-waveform-bar--active:nth-child(7) { animation-delay: 0.0s; }
+
+.voice-card-status {
+  font-size: 0.78rem;
+  color: var(--gray-500);
+  text-align: center;
+  margin: 0;
+}
+
+/* End call button */
+.voice-end-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.25rem;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  justify-content: center;
+}
+
+.voice-end-btn:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.voice-end-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Error toast */
+.voice-error {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fef2f2;
+  color: var(--error);
+  border: 1px solid #fecaca;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  z-index: 10000;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  animation: voiceSlideIn 0.3s ease-out;
+}
+
+/* Mobile: shift card so it doesn't clash with FABs */
+@media (max-width: 768px) {
+  .voice-card {
+    bottom: 6rem;
+    left: 1rem;
+    right: 1rem;
+    width: auto;
+  }
+
+  .voice-fab {
+    bottom: calc(1.25rem + 54px + 10px); /* above mobile chat FAB (54px) */
+    right: 1.25rem;
+    width: 54px;
+    height: 54px;
+  }
+}
