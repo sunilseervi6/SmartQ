@@ -39,6 +39,10 @@ const queueSchema = new mongoose.Schema({
   completedAt: {
     type: Date
   },
+  customerName: {
+    type: String,
+    maxlength: 100
+  },
   notes: {
     type: String,
     maxlength: 200
