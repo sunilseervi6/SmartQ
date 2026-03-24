@@ -4,6 +4,7 @@ import Shop from "../models/Shop.js";
 import User from "../models/User.js";
 import { createNotification } from "./notificationController.js";
 import mongoose from "mongoose";
+import { predictWaitTime, refreshRoomWaitTimes } from "../services/waitTimePrediction.js";
 
 // Join queue (customer)
 export const joinQueue = async (req, res) => {
@@ -75,15 +76,19 @@ export const joinQueue = async (req, res) => {
       notes
     });
 
-    // Calculate estimated wait time (5 minutes per person ahead)
+    // Count people ahead and predict wait time using hybrid model
     const peopleAhead = await Queue.countDocuments({
       roomId: room._id,
       status: 'waiting',
       queueNumber: { $lt: queueEntry.queueNumber }
     });
 
-    const estimatedWaitTime = peopleAhead * 5; // 5 minutes per person
+    const io = req.app.get('io');
+    const estimatedWaitTime = await predictWaitTime(room._id, peopleAhead);
     await Queue.findByIdAndUpdate(queueEntry._id, { estimatedWaitTime });
+
+    // Refresh all other waiting customers' predictions in the background
+    refreshRoomWaitTimes(room._id, io).catch(console.error);
 
     // Get user preferences
     const user = await User.findById(customerId).select('notificationPreferences');
@@ -98,12 +103,11 @@ export const joinQueue = async (req, res) => {
         queueId: queueEntry._id,
         roomId: room._id,
         shopId: room.shopId,
-        data: { queueNumber: queueEntry.queueNumber, estimatedWaitTime: peopleAhead * 5 }
+        data: { queueNumber: queueEntry.queueNumber, estimatedWaitTime }
       });
     }
 
     // Emit real-time update to all clients in this room
-    const io = req.app.get('io');
     if (io) {
       io.to(`room-${room._id}`).emit('queue-updated', {
         type: 'customer-joined',
@@ -113,7 +117,8 @@ export const joinQueue = async (req, res) => {
           queueNumber: queueEntry.queueNumber,
           customerName: queueEntry.customerName,
           status: queueEntry.status,
-          priority: queueEntry.priority
+          priority: queueEntry.priority,
+          estimatedWaitTime,
         }
       });
 
@@ -123,7 +128,7 @@ export const joinQueue = async (req, res) => {
         title: 'Joined Queue',
         message: `Queue number: ${queueEntry.queueNumber}`,
         queueNumber: queueEntry.queueNumber,
-        estimatedWaitTime: peopleAhead * 5
+        estimatedWaitTime,
       });
     }
 
@@ -176,6 +181,9 @@ export const leaveQueue = async (req, res) => {
         roomId
       });
     }
+
+    // Recalculate wait times for remaining customers
+    refreshRoomWaitTimes(roomId, io).catch(console.error);
 
     res.json({
       success: true,
@@ -329,6 +337,9 @@ export const callNextCustomer = async (req, res) => {
       });
     }
 
+    // Recalculate wait times for remaining waiting customers
+    refreshRoomWaitTimes(room._id, io).catch(console.error);
+
     res.json({
       success: true,
       message: "Customer called successfully",
@@ -377,6 +388,9 @@ export const completeService = async (req, res) => {
       });
     }
 
+    // Recalculate wait times — service completion improves everyone's estimate
+    refreshRoomWaitTimes(queueEntry.roomId._id, io).catch(console.error);
+
     res.json({
       success: true,
       message: "Service completed successfully"
@@ -415,6 +429,9 @@ export const markNoShow = async (req, res) => {
         roomId: queueEntry.roomId._id
       });
     }
+
+    // No-show removes a person from queue — recalculate for everyone behind
+    refreshRoomWaitTimes(queueEntry.roomId._id, io).catch(console.error);
 
     res.json({
       success: true,
@@ -492,12 +509,14 @@ export const getMyQueueStatus = async (req, res) => {
         queueNumber: { $lt: queue.queueNumber }
       }) + 1;
 
+      const estimatedWaitTime = await predictWaitTime(queue.roomId._id, position - 1);
+
       return {
         id: queue._id,
         queueNumber: queue.queueNumber,
         position,
         status: queue.status,
-        estimatedWaitTime: (position - 1) * 5, // Update estimated time
+        estimatedWaitTime,
         joinedAt: queue.joinedAt,
         room: {
           name: queue.roomId.name,

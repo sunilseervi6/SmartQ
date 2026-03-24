@@ -123,7 +123,7 @@ async def smartq_voice_agent(ctx: agents.JobContext):
     session = AgentSession(
         vad=silero.VAD.load(),
         stt=assemblyai.STT(),
-        llm=groq.LLM(model="llama-3.3-70b-versatile"),
+        llm=groq.LLM(model="llama-3.1-8b-instant"),
         tts=cartesia.TTS(
             voice="79a125e8-cd45-4c13-8a67-188112f4dd22",  # Friendly female voice
         ),
